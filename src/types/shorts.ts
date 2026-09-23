@@ -21,6 +21,12 @@ export enum CaptionPositionEnum {
   bottom = "bottom",
 }
 
+export type ExampleCard = {
+  title?: string;
+  body: string;
+  kind?: "code" | "fact";
+};
+
 export type Scene = {
   captions: Caption[];
   video: string;
@@ -28,7 +34,27 @@ export type Scene = {
     url: string;
     duration: number;
   };
+  overlayText?: string;
+  exampleCard?: ExampleCard;
+  kind?: "video" | "image";
 };
+
+export const exampleCardInput = z.object({
+  title: z
+    .string()
+    .max(24)
+    .optional()
+    .describe("Short card label such as BEFORE, AFTER, or 230%"),
+  body: z
+    .string()
+    .min(1)
+    .max(400)
+    .describe("Code or a 2-6 word fact shown on the example card"),
+  kind: z
+    .enum(["code", "fact"])
+    .optional()
+    .describe("code renders as an editor window, fact as a statistic card"),
+});
 
 export const sceneInput = z.object({
   text: z.string().describe("Text to be spoken in the video"),
@@ -36,6 +62,17 @@ export const sceneInput = z.object({
     .array(z.string())
     .describe(
       "Search term for video, 1 word, and at least 2-3 search terms should be provided for each scene. Make sure to match the overall context with the word - regardless what the video search result would be.",
+    ),
+  overlayText: z
+    .string()
+    .optional()
+    .describe(
+      "Short on-screen punch for the middle of the scene: a number, one word, or a tiny quote",
+    ),
+  exampleCard: exampleCardInput
+    .optional()
+    .describe(
+      "Hero on-screen card. Use real short code for programming topics, or a number plus a tiny label for facts.",
     ),
 });
 export type SceneInput = z.infer<typeof sceneInput>;
@@ -116,6 +153,27 @@ export const renderConfig = z.object({
     .nativeEnum(MusicVolumeEnum)
     .optional()
     .describe("Volume of the music, default is high"),
+  hookText: z
+    .string()
+    .optional()
+    .describe("Short on-screen hook shown in the first 1-2 seconds"),
+  hookDurationMs: z
+    .number()
+    .optional()
+    .describe("How long the hook stays on screen, in milliseconds. 2200 is a good value."),
+  endCardText: z
+    .string()
+    .optional()
+    .describe("Takeaway line shown on the end card"),
+  endCardCta: z
+    .string()
+    .optional()
+    .describe("Call to action on the end card, for example Follow for more"),
+  endCardBeats: z
+    .array(z.string())
+    .max(3)
+    .optional()
+    .describe("Up to three short recap chips on the end card"),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 
@@ -126,6 +184,7 @@ export type Video = {
   url: string;
   width: number;
   height: number;
+  kind?: "video" | "image";
 };
 export type Caption = {
   text: string;
@@ -147,6 +206,16 @@ export const createShortInput = z.object({
   config: renderConfig.describe("Configuration for rendering the video"),
 });
 export type CreateShortInput = z.infer<typeof createShortInput>;
+
+export const generateShortInput = z.object({
+  prompt: z
+    .string()
+    .trim()
+    .min(8, "Prompt must be at least 8 characters")
+    .max(2000, "Prompt is too long")
+    .describe("A description of the short video the user wants to make"),
+});
+export type GenerateShortInput = z.infer<typeof generateShortInput>;
 
 export type VideoStatus = "processing" | "ready" | "failed";
 

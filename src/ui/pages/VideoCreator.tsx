@@ -20,6 +20,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import {
   SceneInput,
   RenderConfig,
@@ -32,26 +33,36 @@ import {
 
 interface SceneFormData {
   text: string;
-  searchTerms: string; // Changed to string
+  searchTerms: string;
+  overlayText: string;
+  exampleCardTitle: string;
+  exampleCardBody: string;
 }
 
 const VideoCreator: React.FC = () => {
   const navigate = useNavigate();
   const [scenes, setScenes] = useState<SceneFormData[]>([
-    { text: "", searchTerms: "" },
+    { text: "", searchTerms: "", overlayText: "", exampleCardTitle: "", exampleCardBody: "" },
   ]);
   const [config, setConfig] = useState<RenderConfig>({
-    paddingBack: 1500,
+    paddingBack: 2500,
     music: MusicMoodEnum.chill,
     captionPosition: CaptionPositionEnum.bottom,
     captionBackgroundColor: "blue",
     voice: VoiceEnum.af_heart,
     orientation: OrientationEnum.portrait,
-    musicVolume: MusicVolumeEnum.high,
+    musicVolume: MusicVolumeEnum.low,
+    hookText: "",
+    hookDurationMs: 2200,
+    endCardText: "",
+    endCardCta: "Follow for more",
   });
 
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState("");
   const [voices, setVoices] = useState<VoiceEnum[]>([]);
   const [musicTags, setMusicTags] = useState<MusicMoodEnum[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -80,7 +91,16 @@ const VideoCreator: React.FC = () => {
   }, []);
 
   const handleAddScene = () => {
-    setScenes([...scenes, { text: "", searchTerms: "" }]);
+    setScenes([
+      ...scenes,
+      {
+        text: "",
+        searchTerms: "",
+        overlayText: "",
+        exampleCardTitle: "",
+        exampleCardBody: "",
+      },
+    ]);
   };
 
   const handleRemoveScene = (index: number) => {
@@ -105,6 +125,68 @@ const VideoCreator: React.FC = () => {
     setConfig({ ...config, [field]: value });
   };
 
+  const handleGenerateFromPrompt = async () => {
+    if (prompt.trim().length < 8) {
+      setError(
+        "Write a short description of the video you want (at least 8 characters).",
+      );
+      return;
+    }
+
+    setGenerating(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await axios.post("/api/generate-script", {
+        prompt: prompt.trim(),
+      });
+      const generated = response.data as {
+        scenes: SceneInput[];
+        config: RenderConfig;
+        source?: "llm" | "local";
+      };
+
+      setScenes(
+        generated.scenes.map((scene) => ({
+          text: scene.text,
+          searchTerms: scene.searchTerms.join(", "),
+          overlayText: scene.overlayText ?? "",
+          exampleCardTitle: scene.exampleCard?.title ?? "",
+          exampleCardBody: scene.exampleCard?.body ?? "",
+        })),
+      );
+      setConfig({
+        paddingBack: generated.config.paddingBack ?? 2500,
+        music: generated.config.music ?? MusicMoodEnum.chill,
+        captionPosition:
+          generated.config.captionPosition ?? CaptionPositionEnum.bottom,
+        captionBackgroundColor:
+          generated.config.captionBackgroundColor ?? "blue",
+        voice: generated.config.voice ?? VoiceEnum.af_heart,
+        orientation: generated.config.orientation ?? OrientationEnum.portrait,
+        musicVolume: generated.config.musicVolume ?? MusicVolumeEnum.low,
+        hookText: generated.config.hookText ?? "",
+        hookDurationMs: generated.config.hookDurationMs ?? 2200,
+        endCardText: generated.config.endCardText ?? "",
+        endCardCta: generated.config.endCardCta ?? "Follow for more",
+        endCardBeats: generated.config.endCardBeats,
+      });
+      setSuccess(
+        generated.source === "local"
+          ? "Draft hook, scenes, and end card filled. Review them, then click Create Video."
+          : "Hook, scenes, takeaway, and settings generated. Review them, then click Create Video.",
+      );
+    } catch (err) {
+      setError(
+        "Failed to generate scenes from the prompt. Try again, or fill the form manually.",
+      );
+      console.error(err);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -118,6 +200,18 @@ const VideoCreator: React.FC = () => {
           .split(",")
           .map((term) => term.trim())
           .filter((term) => term.length > 0),
+        overlayText: scene.overlayText.trim() || undefined,
+        exampleCard: scene.exampleCardBody.trim()
+          ? {
+              title: scene.exampleCardTitle.trim() || undefined,
+              body: scene.exampleCardBody.trim(),
+              kind: /[{};=>]|function\s|\bclass\s|\bpublic\s/.test(
+                scene.exampleCardBody,
+              )
+                ? "code"
+                : "fact",
+            }
+          : undefined,
       }));
 
       const response = await axios.post("/api/short-video", {
@@ -159,7 +253,111 @@ const VideoCreator: React.FC = () => {
         </Alert>
       )}
 
+      {success && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          {success}
+        </Alert>
+      )}
+
+      <Paper sx={{ p: 3, mb: 4, bgcolor: "#f8fbff" }}>
+        <Typography variant="h6" gutterBottom>
+          Describe your video
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Enter what you want the short to be about. We will fill a hook,
+          spoken scenes, mid-scene overlays, takeaway, search terms, and
+          settings. You can edit anything before creating the video.
+        </Typography>
+        <TextField
+          fullWidth
+          multiline
+          minRows={3}
+          label="Prompt"
+          placeholder="A 30-second portrait video about morning coffee and starting a focused day. Chill music, female voice."
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          inputProps={{ maxLength: 2000 }}
+        />
+        <Box display="flex" justifyContent="flex-end" mt={2}>
+          <Button
+            variant="contained"
+            startIcon={
+              generating ? (
+                <CircularProgress size={18} color="inherit" />
+              ) : (
+                <AutoAwesomeIcon />
+              )
+            }
+            onClick={handleGenerateFromPrompt}
+            disabled={generating || loading}
+          >
+            {generating ? "Generating..." : "Generate scenes"}
+          </Button>
+        </Box>
+      </Paper>
+
       <form onSubmit={handleSubmit}>
+        <Typography variant="h5" component="h2" gutterBottom>
+          Hook and end card
+        </Typography>
+        <Paper sx={{ p: 3, mb: 4 }}>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="On-screen hook"
+                value={config.hookText || ""}
+                onChange={(e) => handleConfigChange("hookText", e.target.value)}
+                helperText="4-8 words shown in the first seconds. A question or bold claim."
+                inputProps={{ maxLength: 60 }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="End-card takeaway"
+                value={config.endCardText || ""}
+                onChange={(e) =>
+                  handleConfigChange("endCardText", e.target.value)
+                }
+                helperText="One line shown after the last spoken scene."
+                inputProps={{ maxLength: 90 }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="End-card call to action"
+                value={config.endCardCta || ""}
+                onChange={(e) =>
+                  handleConfigChange("endCardCta", e.target.value)
+                }
+                placeholder="Follow for more"
+                inputProps={{ maxLength: 40 }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Hook duration (ms)"
+                value={config.hookDurationMs ?? 2200}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "hookDurationMs",
+                    parseInt(e.target.value),
+                  )
+                }
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">ms</InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+          </Grid>
+        </Paper>
+
         <Typography variant="h5" component="h2" gutterBottom>
           Scenes
         </Typography>
@@ -211,6 +409,45 @@ const VideoCreator: React.FC = () => {
                   required
                 />
               </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="On-screen punch"
+                  value={scene.overlayText}
+                  onChange={(e) =>
+                    handleSceneChange(index, "overlayText", e.target.value)
+                  }
+                  helperText="Used only if there is no example card. A number or 1-3 words."
+                  inputProps={{ maxLength: 18 }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  label="Card title"
+                  value={scene.exampleCardTitle}
+                  onChange={(e) =>
+                    handleSceneChange(index, "exampleCardTitle", e.target.value)
+                  }
+                  helperText="BEFORE, AFTER, or a number."
+                  inputProps={{ maxLength: 24 }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={8}>
+                <TextField
+                  fullWidth
+                  label="Example card"
+                  multiline
+                  rows={4}
+                  value={scene.exampleCardBody}
+                  onChange={(e) =>
+                    handleSceneChange(index, "exampleCardBody", e.target.value)
+                  }
+                  helperText="Real short code, or a 2-6 word fact. This is the hero visual."
+                  inputProps={{ maxLength: 400 }}
+                />
+              </Grid>
             </Grid>
           </Paper>
         ))}
@@ -247,7 +484,7 @@ const VideoCreator: React.FC = () => {
                     <InputAdornment position="end">ms</InputAdornment>
                   ),
                 }}
-                helperText="Duration to keep playing after narration ends"
+                helperText="End card length after narration. 2500 ms is a good read time."
                 required
               />
             </Grid>

@@ -17,6 +17,15 @@ export const shortVideoSchema = z.object({
         duration: z.number(),
       }),
       video: z.string(),
+      overlayText: z.string().optional(),
+      exampleCard: z
+        .object({
+          title: z.string().optional(),
+          body: z.string(),
+          kind: z.enum(["code", "fact"]).optional(),
+        })
+        .optional(),
+      kind: z.enum(["video", "image"]).optional(),
     }),
   ),
   config: z.object({
@@ -25,6 +34,19 @@ export const shortVideoSchema = z.object({
     captionBackgroundColor: z.string().optional(),
     durationMs: z.number(),
     musicVolume: z.nativeEnum(MusicVolumeEnum).optional(),
+    hookText: z.string().optional(),
+    hookDurationMs: z.number().optional(),
+    endCardText: z.string().optional(),
+    endCardCta: z.string().optional(),
+    endCardBeats: z.array(z.string()).max(3).optional(),
+    sfx: z
+      .object({
+        whoosh: z.string(),
+        pop: z.string(),
+        click: z.string(),
+        sting: z.string(),
+      })
+      .optional(),
   }),
   music: z.object({
     file: z.string(),
@@ -146,6 +168,98 @@ export function getOrientationConfig(orientation: OrientationEnum) {
   return config[orientation];
 }
 
+export function getSceneSequence({
+  scenes,
+  index,
+  fps,
+  hookFrames = 0,
+}: {
+  scenes: { audio: { duration: number } }[];
+  index: number;
+  fps: number;
+  hookFrames?: number;
+}): { startFrame: number; durationInFrames: number } {
+  const hookExtra = Math.max(0, hookFrames);
+  const spokenBefore = scenes
+    .slice(0, index)
+    .reduce((acc, scene) => acc + scene.audio.duration, 0);
+  const startFrame = Math.round(spokenBefore * fps) + (index === 0 ? 0 : hookExtra);
+  const spokenFrames = Math.max(
+    1,
+    Math.round(scenes[index].audio.duration * fps),
+  );
+  const durationInFrames =
+    index === 0 ? spokenFrames + hookExtra : spokenFrames;
+  return { startFrame, durationInFrames };
+}
+
+export function getOverlayTiming({
+  durationMs,
+  paddingBack = 0,
+  hookDurationMs = 2200,
+  fps,
+}: {
+  durationMs: number;
+  paddingBack?: number;
+  hookDurationMs?: number;
+  fps: number;
+}): { hookFrames: number; endCardFrom: number; endCardFrames: number } {
+  const totalFrames = Math.max(1, Math.round((durationMs / 1000) * fps));
+  const endCardFrames = Math.min(
+    totalFrames,
+    Math.max(0, Math.round((Math.max(0, paddingBack) / 1000) * fps)),
+  );
+  const remaining = Math.max(0, totalFrames - endCardFrames);
+  const hookFrames = Math.min(
+    remaining,
+    Math.max(0, Math.round((Math.max(0, hookDurationMs) / 1000) * fps)),
+  );
+  return {
+    hookFrames,
+    endCardFrom: totalFrames - endCardFrames,
+    endCardFrames,
+  };
+}
+
+export function looksLikeCode(text: string): boolean {
+  return /[{};=>]|::|->|function\s|\bclass\s|\bpublic\s|\bconst\s|\blet\s|\bvar\s|\.\w+\(|<\w+>|Stream</.test(
+    text,
+  );
+}
+
+export function clipCaptionPageToSafeWindow({
+  pageStartMs,
+  pageEndMs,
+  sceneStartFrame,
+  fps,
+  hookFrames,
+  endCardFrom,
+}: {
+  pageStartMs: number;
+  pageEndMs: number;
+  sceneStartFrame: number;
+  fps: number;
+  hookFrames: number;
+  endCardFrom: number;
+}): { from: number; durationInFrames: number } | null {
+  const rawFrom = Math.round((pageStartMs / 1000) * fps);
+  const rawDuration = Math.max(
+    1,
+    Math.round(((pageEndMs - pageStartMs) / 1000) * fps),
+  );
+  const globalFrom = sceneStartFrame + rawFrom;
+  const globalEnd = globalFrom + rawDuration;
+  const safeFrom = Math.max(globalFrom, hookFrames);
+  const safeEnd = Math.min(globalEnd, endCardFrom);
+  if (safeEnd - safeFrom < 3) {
+    return null;
+  }
+  return {
+    from: safeFrom - sceneStartFrame,
+    durationInFrames: safeEnd - safeFrom,
+  };
+}
+
 export function calculateVolume(
   level: MusicVolumeEnum = MusicVolumeEnum.high,
 ): [number, boolean] {
@@ -161,4 +275,45 @@ export function calculateVolume(
     default:
       return [0.7, false];
   }
+}
+
+export function getDuckedMusicVolume({
+  frame,
+  baseVolume,
+  muted,
+  endCardFrom,
+}: {
+  frame: number;
+  baseVolume: number;
+  muted: boolean;
+  endCardFrom: number;
+}): number {
+  if (muted || baseVolume <= 0) {
+    return 0;
+  }
+  const ducked = baseVolume * 0.38;
+  if (frame >= endCardFrom) {
+    return lerp(frame, endCardFrom, endCardFrom + 10, ducked, baseVolume);
+  }
+  return lerp(frame, 0, 8, 0, ducked);
+}
+
+function lerp(
+  frame: number,
+  from: number,
+  to: number,
+  startVal: number,
+  endVal: number,
+): number {
+  if (to <= from) {
+    return endVal;
+  }
+  if (frame <= from) {
+    return startVal;
+  }
+  if (frame >= to) {
+    return endVal;
+  }
+  const t = (frame - from) / (to - from);
+  return startVal + (endVal - startVal) * t;
 }

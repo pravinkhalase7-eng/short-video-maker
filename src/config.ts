@@ -38,6 +38,7 @@ export class Config {
   public packageDirPath: string;
   public musicDirPath: string;
   public pexelsApiKey: string;
+  public pixabayApiKey?: string;
   public logLevel: pino.Level;
   public whisperVerbose: boolean;
   public port: number;
@@ -46,6 +47,10 @@ export class Config {
   public whisperVersion: string = whisperVersion;
   public whisperModel: whisperModels = defaultWhisperModel;
   public kokoroModelPrecision: kokoroModelPrecision = "fp32";
+  public geminiApiKey?: string;
+  public geminiModel: string;
+  public openaiApiKey?: string;
+  public openaiModel: string;
 
   // docker-specific, performance-related settings to prevent memory issues
   public concurrency?: number;
@@ -75,6 +80,7 @@ export class Config {
     this.musicDirPath = path.join(this.staticDirPath, "music");
 
     this.pexelsApiKey = process.env.PEXELS_API_KEY as string;
+    this.pixabayApiKey = process.env.PIXABAY_API_KEY || undefined;
     this.logLevel = (process.env.LOG_LEVEL || defaultLogLevel) as pino.Level;
     this.whisperVerbose = process.env.WHISPER_VERBOSE === "true";
     this.port = process.env.PORT ? parseInt(process.env.PORT) : defaultPort;
@@ -91,13 +97,20 @@ export class Config {
 
     this.concurrency = process.env.CONCURRENCY
       ? parseInt(process.env.CONCURRENCY)
-      : undefined;
+      : this.runningInDocker
+        ? 1
+        : Math.max(2, Math.min(4, (os.cpus().length || 4) - 1));
 
     if (process.env.VIDEO_CACHE_SIZE_IN_BYTES) {
       this.videoCacheSizeInBytes = parseInt(
         process.env.VIDEO_CACHE_SIZE_IN_BYTES,
       );
     }
+
+    this.geminiApiKey = process.env.GEMINI_API_KEY || undefined;
+    this.geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    this.openaiApiKey = process.env.OPENAI_API_KEY || undefined;
+    this.openaiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
   }
 
   public ensureConfig() {

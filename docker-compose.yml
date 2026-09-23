@@ -1,14 +1,42 @@
-version: "3"
+# Production / VPS docker-compose for Short Video Maker
+# Used by Jenkinsfile (same pattern as auto-reader / AI Teacher).
 
 services:
-  short-creator:
+  app:
     build:
       context: .
-      dockerfile: main.Dockerfile
+      dockerfile: main-tiny.Dockerfile
+    image: shortvideo-app:${IMAGE_TAG:-latest}
+    container_name: shortvideo-app
+    restart: unless-stopped
     env_file:
       - .env
     environment:
-      - DEV=false
+      DEV: "false"
+      DOCKER: "true"
+      PORT: "3123"
+      DATA_DIR_PATH: /app/data
+      CONCURRENCY: ${CONCURRENCY:-1}
     ports:
-      - "3123:3123"
-    entrypoint: ["node", "dist/index.js"]
+      - "${APP_HOST_PORT:-3123}:3123"
+    volumes:
+      - shortvideo_videos:/app/data/videos
+      - shortvideo_temp:/app/data/temp
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3123/health"]
+      interval: 20s
+      timeout: 8s
+      retries: 12
+      start_period: 120s
+    networks:
+      - shortvideo
+
+volumes:
+  shortvideo_videos:
+    name: shortvideo_videos
+  shortvideo_temp:
+    name: shortvideo_temp
+
+networks:
+  shortvideo:
+    name: shortvideo_net

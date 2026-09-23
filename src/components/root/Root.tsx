@@ -51,6 +51,12 @@ export const RemotionRoot: React.FC = () => {
                 url: "http://localhost:3123/api/tmp/cma1lgean0001rlsi52b8h3n3.mp3",
                 duration: 3.15,
               },
+              overlayText: "HELLO",
+              exampleCard: {
+                title: "AFTER",
+                body: "() -> hello()",
+                kind: "code",
+              },
             },
           ],
           config: {
@@ -58,6 +64,17 @@ export const RemotionRoot: React.FC = () => {
             paddingBack: 1500,
             captionBackgroundColor: "blue",
             captionPosition: "bottom",
+            hookText: "Hello World",
+            hookDurationMs: 2200,
+            endCardText: "Say it out loud.",
+            endCardCta: "Follow for more",
+            endCardBeats: ["BEFORE", "AFTER"],
+            sfx: {
+              whoosh: "http://localhost:3123/static/sfx/whoosh.mp3",
+              pop: "http://localhost:3123/static/sfx/pop.mp3",
+              click: "http://localhost:3123/static/sfx/click.mp3",
+              sting: "http://localhost:3123/static/sfx/sting.mp3",
+            },
           },
         }}
         calculateMetadata={calculateMetadata}
@@ -265,6 +282,12 @@ export const RemotionRoot: React.FC = () => {
                 url: "http://localhost:3123/api/tmp/cma9ctvpo0001aqsia12i82db.mp3",
                 duration: 12.8,
               },
+              overlayText: "DINNER",
+              exampleCard: {
+                title: "DINNER",
+                body: "The wine stayed",
+                kind: "fact",
+              },
             },
           ],
           config: {
@@ -272,6 +295,17 @@ export const RemotionRoot: React.FC = () => {
             paddingBack: 1500,
             captionBackgroundColor: "#ff0000",
             captionPosition: "center",
+            hookText: "Dinner turned into war",
+            hookDurationMs: 2200,
+            endCardText: "The wine stayed. The peace did not.",
+            endCardCta: "Follow for more",
+            endCardBeats: ["FOOD", "WINE", "WAR"],
+            sfx: {
+              whoosh: "http://localhost:3123/static/sfx/whoosh.mp3",
+              pop: "http://localhost:3123/static/sfx/pop.mp3",
+              click: "http://localhost:3123/static/sfx/click.mp3",
+              sting: "http://localhost:3123/static/sfx/sting.mp3",
+            },
           },
         }}
         calculateMetadata={calculateMetadata}

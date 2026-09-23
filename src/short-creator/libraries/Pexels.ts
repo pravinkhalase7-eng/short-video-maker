@@ -2,6 +2,7 @@
 import { getOrientationConfig } from "../../components/utils";
 import { logger } from "../../logger";
 import { OrientationEnum, type Video } from "../../types/shorts";
+import { matchesSearchText } from "./stockRelevance";
 
 const jokerTerms: string[] = ["nature", "globe", "space", "ocean"];
 const durationBufferSeconds = 3;
@@ -51,8 +52,9 @@ export class PexelsAPI {
         logger.error(error, "Error fetching videos from Pexels API");
         throw error;
       });
-    const videos = response.videos as {
+    const videos = ((response.videos || []) as {
       id: string;
+      url?: string;
       duration: number;
       video_files: {
         fps: number;
@@ -62,7 +64,7 @@ export class PexelsAPI {
         id: string;
         link: string;
       }[];
-    }[];
+    }[]).filter((video) => matchesSearchText(video.url, searchTerm));
 
     const { width: requiredVideoWidth, height: requiredVideoHeight } =
       getOrientationConfig(orientation);
@@ -75,46 +77,25 @@ export class PexelsAPI {
       throw new Error("No videos found");
     }
 
-    // find all the videos that fits the criteria, then select one randomly
-    const filteredVideos = videos
-      .map((video) => {
-        if (excludeIds.includes(video.id)) {
-          return;
-        }
-        if (!video.video_files.length) {
-          return;
-        }
-
-        // calculate the real duration of the video by converting the FPS to 25
-        const fps = video.video_files[0].fps;
-        const duration =
-          fps < 25 ? video.duration * (fps / 25) : video.duration;
-
-        if (duration >= minDurationSeconds + durationBufferSeconds) {
-          for (const file of video.video_files) {
-            if (
-              file.quality === "hd" &&
-              file.width === requiredVideoWidth &&
-              file.height === requiredVideoHeight
-            ) {
-              return {
-                id: video.id,
-                url: file.link,
-                width: file.width,
-                height: file.height,
-              };
-            }
-          }
-        }
-      })
+    const candidates = videos
+      .map((video) =>
+        pickPexelsVideoFile({
+          video,
+          excludeIds,
+          minDurationSeconds,
+          orientation,
+          requiredVideoWidth,
+          requiredVideoHeight,
+        }),
+      )
       .filter(Boolean);
-    if (!filteredVideos.length) {
+    if (!candidates.length) {
       logger.error({ searchTerm }, "No videos found in Pexels API");
       throw new Error("No videos found");
     }
 
-    const video = filteredVideos[
-      Math.floor(Math.random() * filteredVideos.length)
+    const video = candidates[
+      Math.floor(Math.random() * candidates.length)
     ] as Video;
 
     logger.debug(
@@ -132,12 +113,18 @@ export class PexelsAPI {
     orientation: OrientationEnum = OrientationEnum.portrait,
     timeout: number = defaultTimeoutMs,
     retryCounter: number = 0,
+    useJokers: boolean = true,
   ): Promise<Video> {
-    // shuffle the search terms to randomize the search order
-    const shuffledJokerTerms = jokerTerms.sort(() => Math.random() - 0.5);
-    const shuffledSearchTerms = searchTerms.sort(() => Math.random() - 0.5);
+    const shuffledJokerTerms = useJokers
+      ? [...jokerTerms].sort(() => Math.random() - 0.5)
+      : [];
+    const [primary, ...rest] = searchTerms.filter(Boolean);
+    const orderedSearchTerms = [
+      ...(primary ? [primary] : []),
+      ...[...rest].sort(() => Math.random() - 0.5),
+    ];
 
-    for (const searchTerm of [...shuffledSearchTerms, ...shuffledJokerTerms]) {
+    for (const searchTerm of [...orderedSearchTerms, ...shuffledJokerTerms]) {
       try {
         return await this._findVideo(
           searchTerm,
@@ -164,6 +151,7 @@ export class PexelsAPI {
               orientation,
               timeout,
               retryCounter + 1,
+              useJokers,
             );
           }
           logger.error(
@@ -182,4 +170,150 @@ export class PexelsAPI {
     );
     throw new Error("No videos found in Pexels API");
   }
+
+  async findPhoto(
+    searchTerm: string,
+    excludeIds: string[] = [],
+    orientation: OrientationEnum = OrientationEnum.portrait,
+    timeout: number = defaultTimeoutMs,
+  ): Promise<Video> {
+    if (!this.API_KEY) {
+      throw new Error("API key not set");
+    }
+    logger.debug({ searchTerm, orientation }, "Searching for photo in Pexels API");
+    const response = await fetch(
+      `https://api.pexels.com/v1/search?orientation=${orientation}&per_page=40&query=${encodeURIComponent(searchTerm)}`,
+      {
+        method: "GET",
+        headers: { Authorization: this.API_KEY },
+        signal: AbortSignal.timeout(timeout),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Pexels photo API error: ${response.status}`);
+    }
+    const data = (await response.json()) as {
+      photos?: {
+        id: number;
+        alt?: string;
+        url?: string;
+        width: number;
+        height: number;
+        src: {
+          original?: string;
+          large2x?: string;
+          portrait?: string;
+          landscape?: string;
+        };
+      }[];
+    };
+    const photos = (data.photos || []).filter(
+      (photo) =>
+        !excludeIds.includes(`pexels-photo-${photo.id}`) &&
+        (matchesSearchText(photo.alt, searchTerm) ||
+          matchesSearchText(photo.url, searchTerm)),
+    );
+    if (!photos.length) {
+      throw new Error("No photos found");
+    }
+    const photo = photos[Math.floor(Math.random() * photos.length)];
+    const url =
+      (orientation === OrientationEnum.portrait
+        ? photo.src.portrait
+        : photo.src.landscape) ||
+      photo.src.large2x ||
+      photo.src.original;
+    if (!url) {
+      throw new Error("No photos found");
+    }
+    const result: Video = {
+      id: `pexels-photo-${photo.id}`,
+      url,
+      width: photo.width,
+      height: photo.height,
+      kind: "image",
+    };
+    logger.debug({ searchTerm, photo: result }, "Found photo from Pexels API");
+    return result;
+  }
+}
+
+export function pickPexelsVideoFile({
+  video,
+  excludeIds,
+  minDurationSeconds,
+  orientation,
+  requiredVideoWidth,
+  requiredVideoHeight,
+}: {
+  video: {
+    id: string;
+    duration: number;
+    video_files: {
+      fps: number;
+      quality: string;
+      width: number;
+      height: number;
+      link: string;
+    }[];
+  };
+  excludeIds: string[];
+  minDurationSeconds: number;
+  orientation: OrientationEnum;
+  requiredVideoWidth: number;
+  requiredVideoHeight: number;
+}): Video | undefined {
+  if (excludeIds.includes(String(video.id)) || !video.video_files.length) {
+    return undefined;
+  }
+  const fps = video.video_files[0].fps;
+  const duration = fps < 25 ? video.duration * (fps / 25) : video.duration;
+  if (duration < minDurationSeconds + durationBufferSeconds) {
+    return undefined;
+  }
+
+  const exact = video.video_files.find(
+    (file) =>
+      file.quality === "hd" &&
+      file.width === requiredVideoWidth &&
+      file.height === requiredVideoHeight,
+  );
+  if (exact) {
+    return {
+      id: String(video.id),
+      url: exact.link,
+      width: exact.width,
+      height: exact.height,
+      kind: "video",
+    };
+  }
+
+  const targetPixels = requiredVideoWidth * requiredVideoHeight;
+  const maxPixels = Math.round(targetPixels * 1.15);
+  const oriented = video.video_files
+    .filter((file) =>
+      orientation === OrientationEnum.portrait
+        ? file.height > file.width
+        : file.width > file.height,
+    )
+    .sort((a, b) => {
+      const aPixels = a.width * a.height;
+      const bPixels = b.width * b.height;
+      const aOver = aPixels > maxPixels;
+      const bOver = bPixels > maxPixels;
+      if (aOver !== bOver) {
+        return aOver ? 1 : -1;
+      }
+      return Math.abs(aPixels - targetPixels) - Math.abs(bPixels - targetPixels);
+    })[0];
+  if (!oriented) {
+    return undefined;
+  }
+  return {
+    id: String(video.id),
+    url: oriented.link,
+    width: oriented.width,
+    height: oriented.height,
+    kind: "video",
+  };
 }

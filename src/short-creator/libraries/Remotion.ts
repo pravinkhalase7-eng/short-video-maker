@@ -48,20 +48,43 @@ export class Remotion {
     logger.debug({ component, videoID: id }, "Rendering video with Remotion");
 
     const outputLocation = path.join(this.config.videosDirPath, `${id}.mp4`);
+    const maxAttempts = 3;
+    let lastError: unknown;
 
-    await renderMedia({
-      codec: "h264",
-      composition,
-      serveUrl: this.bundled,
-      outputLocation,
-      inputProps: data,
-      onProgress: ({ progress }) => {
-        logger.debug(`Rendering ${id} ${Math.floor(progress * 100)}% complete`);
-      },
-      // preventing memory issues with docker
-      concurrency: this.config.concurrency,
-      offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes,
-    });
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await renderMedia({
+          codec: "h264",
+          composition,
+          serveUrl: this.bundled,
+          outputLocation,
+          inputProps: data,
+          onProgress: ({ progress }) => {
+            logger.debug(
+              `Rendering ${id} ${Math.floor(progress * 100)}% complete`,
+            );
+          },
+          concurrency: this.config.concurrency ?? 1,
+          offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes,
+          timeoutInMilliseconds: 180000,
+        });
+        lastError = undefined;
+        break;
+      } catch (error: unknown) {
+        lastError = error;
+        logger.warn(
+          { attempt, maxAttempts, videoID: id, error },
+          "Remotion render failed",
+        );
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+        }
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
 
     logger.debug(
       {

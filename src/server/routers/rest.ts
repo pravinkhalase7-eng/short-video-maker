@@ -10,24 +10,84 @@ import { validateCreateShortInput } from "../validator";
 import { ShortCreator } from "../../short-creator/ShortCreator";
 import { logger } from "../../logger";
 import { Config } from "../../config";
+import { PromptScriptGenerator } from "../../short-creator/libraries/PromptScriptGenerator";
+import { generateShortInput } from "../../types/shorts";
 
 // todo abstract class
 export class APIRouter {
   public router: express.Router;
   private shortCreator: ShortCreator;
   private config: Config;
+  private promptScriptGenerator: PromptScriptGenerator;
 
   constructor(config: Config, shortCreator: ShortCreator) {
     this.config = config;
     this.router = express.Router();
     this.shortCreator = shortCreator;
+    this.promptScriptGenerator = new PromptScriptGenerator(config);
 
     this.router.use(express.json());
 
     this.setupRoutes();
   }
 
+  private sendLocalAsset(
+    res: ExpressResponse,
+    filePath: string,
+    notFoundMessage: string,
+  ) {
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({
+        error: notFoundMessage,
+      });
+      return;
+    }
+
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.sendFile(path.resolve(filePath), (error) => {
+      if (error) {
+        logger.error(error, notFoundMessage);
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: notFoundMessage,
+          });
+        }
+      }
+    });
+  }
+
   private setupRoutes() {
+    this.router.post(
+      "/generate-script",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          const parsed = generateShortInput.safeParse(req.body);
+          if (!parsed.success) {
+            res.status(400).json({
+              error: "Validation failed",
+              message: parsed.error.errors[0]?.message || "Invalid prompt",
+            });
+            return;
+          }
+
+          logger.info(
+            { prompt: parsed.data.prompt },
+            "Generating script from prompt",
+          );
+          const generated = await this.promptScriptGenerator.generate(
+            parsed.data.prompt,
+          );
+          res.status(200).json(generated);
+        } catch (error: unknown) {
+          logger.error(error, "Error generating script from prompt");
+          res.status(500).json({
+            error: "Failed to generate script",
+            message: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      },
+    );
+
     this.router.post(
       "/short-video",
       async (req: ExpressRequest, res: ExpressResponse) => {
@@ -137,32 +197,7 @@ export class APIRouter {
           return;
         }
         const tmpFilePath = path.join(this.config.tempDirPath, tmpFile);
-        if (!fs.existsSync(tmpFilePath)) {
-          res.status(404).json({
-            error: "tmpFile not found",
-          });
-          return;
-        }
-
-        if (tmpFile.endsWith(".mp3")) {
-          res.setHeader("Content-Type", "audio/mpeg");
-        }
-        if (tmpFile.endsWith(".wav")) {
-          res.setHeader("Content-Type", "audio/wav");
-        }
-        if (tmpFile.endsWith(".mp4")) {
-          res.setHeader("Content-Type", "video/mp4");
-        }
-
-        const tmpFileStream = fs.createReadStream(tmpFilePath);
-        tmpFileStream.on("error", (error) => {
-          logger.error(error, "Error reading tmp file");
-          res.status(500).json({
-            error: "Error reading tmp file",
-            tmpFile,
-          });
-        });
-        tmpFileStream.pipe(res);
+        this.sendLocalAsset(res, tmpFilePath, "tmpFile not found");
       },
     );
 
@@ -177,21 +212,7 @@ export class APIRouter {
           return;
         }
         const musicFilePath = path.join(this.config.musicDirPath, fileName);
-        if (!fs.existsSync(musicFilePath)) {
-          res.status(404).json({
-            error: "music file not found",
-          });
-          return;
-        }
-        const musicFileStream = fs.createReadStream(musicFilePath);
-        musicFileStream.on("error", (error) => {
-          logger.error(error, "Error reading music file");
-          res.status(500).json({
-            error: "Error reading music file",
-            fileName,
-          });
-        });
-        musicFileStream.pipe(res);
+        this.sendLocalAsset(res, musicFilePath, "music file not found");
       },
     );
 

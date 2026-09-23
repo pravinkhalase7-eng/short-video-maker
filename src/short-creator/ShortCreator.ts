@@ -11,6 +11,8 @@ import { Remotion } from "./libraries/Remotion";
 import { Whisper } from "./libraries/Whisper";
 import { FFMpeg } from "./libraries/FFmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
+import { PixabayAPI } from "./libraries/Pixabay";
+import { StockMedia } from "./libraries/StockMedia";
 import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
@@ -30,15 +32,21 @@ export class ShortCreator {
     config: RenderConfig;
     id: string;
   }[] = [];
+  private stockMedia: StockMedia;
   constructor(
     private config: Config,
     private remotion: Remotion,
     private kokoro: Kokoro,
     private whisper: Whisper,
     private ffmpeg: FFMpeg,
-    private pexelsApi: PexelsAPI,
+    pexelsApi: PexelsAPI,
     private musicManager: MusicManager,
-  ) {}
+  ) {
+    this.stockMedia = new StockMedia(
+      pexelsApi,
+      new PixabayAPI(config.pixabayApiKey),
+    );
+  }
 
   public status(id: string): VideoStatus {
     const videoPath = this.getVideoPath(id);
@@ -121,90 +129,96 @@ export class ShortCreator {
       }
 
       const tempId = cuid();
+      const clip = await this.stockMedia.findClip(
+        scene.searchTerms,
+        audioLength,
+        excludeVideoIds,
+        orientation,
+      );
+      const isImage = clip.kind === "image";
       const tempWavFileName = `${tempId}.wav`;
       const tempMp3FileName = `${tempId}.mp3`;
-      const tempVideoFileName = `${tempId}.mp4`;
+      const tempMediaFileName = `${tempId}.${isImage ? "jpg" : "mp4"}`;
       const tempWavPath = path.join(this.config.tempDirPath, tempWavFileName);
       const tempMp3Path = path.join(this.config.tempDirPath, tempMp3FileName);
-      const tempVideoPath = path.join(
+      const tempMediaPath = path.join(
         this.config.tempDirPath,
-        tempVideoFileName,
+        tempMediaFileName,
       );
-      tempFiles.push(tempVideoPath);
+      tempFiles.push(tempMediaPath);
       tempFiles.push(tempWavPath, tempMp3Path);
 
       await this.ffmpeg.saveNormalizedAudio(audioStream, tempWavPath);
       const captions = await this.whisper.CreateCaption(tempWavPath);
 
       await this.ffmpeg.saveToMp3(audioStream, tempMp3Path);
-      const video = await this.pexelsApi.findVideo(
-        scene.searchTerms,
-        audioLength,
-        excludeVideoIds,
-        orientation,
-      );
 
-      logger.debug(`Downloading video from ${video.url} to ${tempVideoPath}`);
+      logger.debug(`Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`);
+      await downloadHttpFile(clip.url, tempMediaPath);
 
-      await new Promise<void>((resolve, reject) => {
-        const fileStream = fs.createWriteStream(tempVideoPath);
-        https
-          .get(video.url, (response: http.IncomingMessage) => {
-            if (response.statusCode !== 200) {
-              reject(
-                new Error(`Failed to download video: ${response.statusCode}`),
-              );
-              return;
-            }
-
-            response.pipe(fileStream);
-
-            fileStream.on("finish", () => {
-              fileStream.close();
-              logger.debug(`Video downloaded successfully to ${tempVideoPath}`);
-              resolve();
-            });
-          })
-          .on("error", (err: Error) => {
-            fs.unlink(tempVideoPath, () => {}); // Delete the file if download failed
-            logger.error(err, "Error downloading video:");
-            reject(err);
-          });
-      });
-
-      excludeVideoIds.push(video.id);
+      excludeVideoIds.push(clip.id);
 
       scenes.push({
         captions,
-        video: `http://localhost:${this.config.port}/api/tmp/${tempVideoFileName}`,
+        video: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
         audio: {
-          url: `http://localhost:${this.config.port}/api/tmp/${tempMp3FileName}`,
+          url: this.remotionAssetUrl(`/api/tmp/${tempMp3FileName}`),
           duration: audioLength,
         },
+        overlayText: scene.overlayText?.trim() || undefined,
+        exampleCard: scene.exampleCard,
+        kind: clip.kind,
       });
 
       totalDuration += audioLength;
       index++;
     }
-    if (config.paddingBack) {
-      totalDuration += config.paddingBack / 1000;
-    }
 
     const selectedMusic = this.findMusic(totalDuration, config.music);
     logger.debug({ selectedMusic }, "Selected music for the video");
+
+    const hookMs = config.hookText?.trim()
+      ? config.hookDurationMs ?? 2200
+      : 0;
 
     await this.remotion.render(
       {
         music: selectedMusic,
         scenes,
         config: {
-          durationMs: totalDuration * 1000,
+          durationMs: totalDuration * 1000 + hookMs,
           paddingBack: config.paddingBack,
-          ...{
-            captionBackgroundColor: config.captionBackgroundColor,
-            captionPosition: config.captionPosition,
-          },
+          captionBackgroundColor: config.captionBackgroundColor,
+          captionPosition: config.captionPosition,
           musicVolume: config.musicVolume,
+          hookText: config.hookText,
+          hookDurationMs: config.hookDurationMs,
+          endCardText: config.endCardText,
+          endCardCta: config.endCardCta,
+          endCardBeats: (() => {
+            const beats = (config.endCardBeats || [])
+              .map((beat) => beat.trim())
+              .filter(Boolean)
+              .slice(0, 3);
+            if (beats.length > 0) {
+              return beats;
+            }
+            return scenes
+              .map(
+                (scene) =>
+                  scene.exampleCard?.title?.trim() ||
+                  scene.overlayText?.trim() ||
+                  "",
+              )
+              .filter(Boolean)
+              .slice(0, 3);
+          })(),
+          sfx: {
+            whoosh: this.remotionAssetUrl("/static/sfx/whoosh.mp3"),
+            pop: this.remotionAssetUrl("/static/sfx/pop.mp3"),
+            click: this.remotionAssetUrl("/static/sfx/click.mp3"),
+            sting: this.remotionAssetUrl("/static/sfx/sting.mp3"),
+          },
         },
       },
       videoId,
@@ -243,7 +257,17 @@ export class ShortCreator {
       }
       return true;
     });
-    return musicFiles[Math.floor(Math.random() * musicFiles.length)];
+    const selected = musicFiles[Math.floor(Math.random() * musicFiles.length)];
+    return {
+      ...selected,
+      url: this.remotionAssetUrl(
+        `/api/music/${encodeURIComponent(selected.file)}`,
+      ),
+    };
+  }
+
+  private remotionAssetUrl(route: string): string {
+    return `http://127.0.0.1:${this.config.port}${route}`;
   }
 
   public ListAvailableMusicTags(): MusicTag[] {
@@ -294,4 +318,34 @@ export class ShortCreator {
   public ListAvailableVoices(): string[] {
     return this.kokoro.listAvailableVoices();
   }
+}
+
+function downloadHttpFile(url: string, dest: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith("https") ? https : http;
+    const request = client.get(url, (response: http.IncomingMessage) => {
+      const status = response.statusCode ?? 0;
+      const location = response.headers.location;
+      if (status >= 300 && status < 400 && location) {
+        const nextUrl = new URL(location, url).toString();
+        downloadHttpFile(nextUrl, dest).then(resolve, reject);
+        return;
+      }
+      if (status !== 200) {
+        reject(new Error(`Failed to download media: ${status}`));
+        return;
+      }
+      const fileStream = fs.createWriteStream(dest);
+      response.pipe(fileStream);
+      fileStream.on("finish", () => {
+        fileStream.close();
+        resolve();
+      });
+      fileStream.on("error", reject);
+    });
+    request.on("error", (err: Error) => {
+      fs.unlink(dest, () => {});
+      reject(err);
+    });
+  });
 }

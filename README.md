@@ -439,12 +439,19 @@ Setting up the MCP (or REST) server depends on how you run n8n and the server. P
 
 # Deploying to the cloud
 
-While each VPS provider is different, and it’s impossible to provide configuration to all of them, here are some tips.
+Production deploy uses the same **Jenkins → Docker Compose** flow as auto-reader. See **[docs/deploy.md](docs/deploy.md)**.
+
+Quick summary:
+
+1. Create Jenkins credential Secret file ID: `shortvideo-env-file` (from `shortvideo.env.example`)
+2. Pipeline uses root `Jenkinsfile` → builds `shortvideo-app` → `docker compose up -d`
+3. UI + API on port **3123** (`http://YOUR_VPS_IP:3123`)
+
+Manual VPS tips if you are not using Jenkins:
 
 - Use Ubuntu ≥ 22.04
 - Have ≥ 4gb RAM, ≥ 2vCPUs and ≥5gb storage
-- Use [pm2](https://pm2.keymetrics.io/) to run/manage the server
-- Put the environment variables to the `.bashrc` file (or similar)
+- Prefer `docker compose up -d` over pm2 so Whisper, Chrome, and FFmpeg stay in the image
 
 # FAQ
 

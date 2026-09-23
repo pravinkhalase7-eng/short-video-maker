@@ -43,7 +43,7 @@ export class Server {
   }
 
   public start(): http.Server {
-    const server = this.app.listen(this.config.port, () => {
+    const server = this.app.listen(this.config.port, "0.0.0.0", () => {
       logger.info(
         { port: this.config.port, mcp: "/mcp", api: "/api" },
         "MCP and API server is running",

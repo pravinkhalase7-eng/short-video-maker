@@ -155,6 +155,7 @@ test("test me", async () => {
     url: "https://example.com/mock-video-1.mp4",
     width: 1080,
     height: 1920,
+    kind: "video",
   });
 
   const config = new Config();
