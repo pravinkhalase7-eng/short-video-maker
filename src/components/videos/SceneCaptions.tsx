@@ -1,9 +1,11 @@
-import { Sequence } from "remotion";
+import { Sequence, interpolate, useCurrentFrame } from "remotion";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
+import type { CSSProperties } from "react";
 import type { Caption } from "../../types/shorts";
 import {
   clipCaptionPageToSafeWindow,
   createCaptionPages,
+  isPunchCaptionWord,
 } from "../utils";
 
 const { fontFamily } = loadFont();
@@ -36,9 +38,9 @@ export const SceneCaptions: React.FC<{
   const isPortrait = variant === "portrait";
   const pages = createCaptionPages({
     captions,
-    lineMaxLength: quiet ? (isPortrait ? 14 : 20) : isPortrait ? 16 : 22,
+    lineMaxLength: quiet ? (isPortrait ? 8 : 12) : isPortrait ? 10 : 14,
     lineCount: 1,
-    maxDistanceMs: 1000,
+    maxDistanceMs: 420,
   });
 
   const position = quiet ? "bottom" : captionPosition;
@@ -51,11 +53,11 @@ export const SceneCaptions: React.FC<{
 
   const fontSize = quiet
     ? isPortrait
-      ? "3.1em"
-      : "3.6em"
+      ? "3.4em"
+      : "3.8em"
     : isPortrait
-      ? "4.2em"
-      : "5em";
+      ? "4.8em"
+      : "5.4em";
 
   return (
     <>
@@ -78,67 +80,126 @@ export const SceneCaptions: React.FC<{
             from={windowed.from}
             durationInFrames={windowed.durationInFrames}
           >
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                width: "100%",
-                paddingLeft: 36,
-                paddingRight: 36,
-                ...captionStyle,
-              }}
-            >
-              {page.lines.map((line, k) => (
-                <p
-                  key={`scene-${sceneIndex}-page-${j}-line-${k}`}
-                  style={{
-                    fontSize,
-                    fontFamily,
-                    fontWeight: 800,
-                    color: "white",
-                    WebkitTextStroke: "2px black",
-                    WebkitTextFillColor: "white",
-                    textShadow: "0px 0px 10px black",
-                    textAlign: "center",
-                    width: "100%",
-                    textTransform: "uppercase",
-                    margin: 0,
-                  }}
-                >
-                  {line.texts.map((text, l) => {
-                    const active =
-                      compositionFrame >=
-                        sceneStartFrame + (text.startMs / 1000) * fps &&
-                      compositionFrame <=
-                        sceneStartFrame + (text.endMs / 1000) * fps;
-                    return (
-                      <span key={`scene-${sceneIndex}-page-${j}-line-${k}-text-${l}`}>
-                        <span
-                          style={{
-                            fontWeight: 800,
-                            ...(active
-                              ? {
-                                  backgroundColor: captionBackgroundColor,
-                                  padding: quiet ? "4px 8px" : "8px 10px",
-                                  marginLeft: quiet ? "-8px" : "-10px",
-                                  marginRight: quiet ? "-8px" : "-10px",
-                                  borderRadius: quiet ? 8 : 10,
-                                }
-                              : {}),
-                          }}
-                        >
-                          {text.text}
-                        </span>
-                        {l < line.texts.length - 1 ? " " : ""}
-                      </span>
-                    );
-                  })}
-                </p>
-              ))}
-            </div>
+            <KineticCaptionLine
+              texts={page.lines[0]?.texts || []}
+              sceneIndex={sceneIndex}
+              pageIndex={j}
+              sceneStartFrame={sceneStartFrame}
+              compositionFrame={compositionFrame}
+              fps={fps}
+              captionStyle={captionStyle}
+              fontSize={fontSize}
+              captionBackgroundColor={captionBackgroundColor}
+              quiet={quiet}
+            />
           </Sequence>
         );
       })}
     </>
+  );
+};
+
+const KineticCaptionLine: React.FC<{
+  texts: Caption[];
+  sceneIndex: number;
+  pageIndex: number;
+  sceneStartFrame: number;
+  compositionFrame: number;
+  fps: number;
+  captionStyle: CSSProperties;
+  fontSize: string;
+  captionBackgroundColor: string;
+  quiet: boolean;
+}> = ({
+  texts,
+  sceneIndex,
+  pageIndex,
+  sceneStartFrame,
+  compositionFrame,
+  fps,
+  captionStyle,
+  fontSize,
+  captionBackgroundColor,
+  quiet,
+}) => {
+  const frame = useCurrentFrame();
+  const enter = interpolate(frame, [0, 4], [0.82, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 0,
+        width: "100%",
+        paddingLeft: 36,
+        paddingRight: 36,
+        ...captionStyle,
+      }}
+    >
+      <p
+        style={{
+          fontSize,
+          fontFamily,
+          fontWeight: 800,
+          color: "white",
+          WebkitTextStroke: "2px black",
+          WebkitTextFillColor: "white",
+          textShadow: "0px 0px 10px black",
+          textAlign: "center",
+          width: "100%",
+          textTransform: "uppercase",
+          margin: 0,
+          transform: `scale(${enter})`,
+        }}
+      >
+        {texts.map((text, l) => {
+          const wordStart = sceneStartFrame + (text.startMs / 1000) * fps;
+          const wordEnd = sceneStartFrame + (text.endMs / 1000) * fps;
+          const active =
+            compositionFrame >= wordStart && compositionFrame <= wordEnd;
+          const punch = isPunchCaptionWord(text.text);
+          const local = compositionFrame - wordStart;
+          const wordScale = active
+            ? interpolate(
+                local,
+                [0, 3, 8],
+                punch ? [0.86, 1.28, 1.08] : [0.92, 1.12, 1],
+                {
+                  extrapolateLeft: "clamp",
+                  extrapolateRight: "clamp",
+                },
+              )
+            : 1;
+          return (
+            <span key={`scene-${sceneIndex}-page-${pageIndex}-text-${l}`}>
+              <span
+                style={{
+                  display: "inline-block",
+                  fontWeight: 800,
+                  transform: `scale(${wordScale})`,
+                  ...(active
+                    ? {
+                        backgroundColor: punch
+                          ? "#ff3d6e"
+                          : captionBackgroundColor,
+                        padding: quiet ? "4px 8px" : "8px 10px",
+                        marginLeft: quiet ? "-8px" : "-10px",
+                        marginRight: quiet ? "-8px" : "-10px",
+                        borderRadius: quiet ? 8 : 10,
+                      }
+                    : {}),
+                }}
+              >
+                {text.text}
+              </span>
+              {l < texts.length - 1 ? " " : ""}
+            </span>
+          );
+        })}
+      </p>
+    </div>
   );
 };

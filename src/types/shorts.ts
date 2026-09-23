@@ -41,6 +41,10 @@ export type ExampleCard = {
 export type Scene = {
   captions: Caption[];
   video: string;
+  clips?: {
+    url: string;
+    kind?: "video" | "image";
+  }[];
   audio: {
     url: string;
     duration: number;
@@ -48,6 +52,7 @@ export type Scene = {
   overlayText?: string;
   exampleCard?: ExampleCard;
   kind?: "video" | "image";
+  holdMs?: number;
 };
 
 export const exampleCardInput = z.object({

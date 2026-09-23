@@ -12,13 +12,18 @@ import {
   getDuckedMusicVolume,
   getOverlayTiming,
   getSceneSequence,
+  isQuizAnswerCard,
+  isQuizQuestionCard,
+  sceneClips,
   shortVideoSchema,
+  splitClipWindows,
 } from "../utils";
-import { KenBurnsClip, PunchOverlay } from "./SceneMotion";
+import { PunchOverlay, SceneBroll } from "./SceneMotion";
 import { StoryOverlaySequences } from "./StoryOverlays";
 import { ExampleCardOverlay } from "./ExampleCard";
 import { SceneCaptions } from "./SceneCaptions";
-import { EndCardSfx, SceneSfx } from "./SceneSfx";
+import { ClipCutSfx, EndCardSfx, QuizAnswerSfx, SceneSfx } from "./SceneSfx";
+import { QuizCountdown } from "./QuizCountdown";
 
 export const ShortVideo: React.FC<
   z.infer<typeof shortVideoSchema> & { variant: "portrait" | "landscape" }
@@ -54,7 +59,8 @@ export const ShortVideo: React.FC<
       />
 
       {scenes.map((scene, i) => {
-        const { captions, audio, video } = scene;
+        const { captions, audio } = scene;
+        const clips = sceneClips(scene);
         const { startFrame, durationInFrames } = getSceneSequence({
           scenes,
           index: i,
@@ -72,7 +78,21 @@ export const ShortVideo: React.FC<
                   Math.max(0, totalFrames - endCardFrom),
               )
             : durationInFrames - audioDelayFrames;
+        const windows = splitClipWindows(durationInFrames, clips.length);
         const hasCard = Boolean(scene.exampleCard?.body?.trim());
+        const quizQuestion = isQuizQuestionCard(scene.exampleCard);
+        const quizAnswer = isQuizAnswerCard(scene.exampleCard);
+        const holdFrames = Math.min(
+          spokenFrames,
+          Math.max(
+            0,
+            Math.round(((scene.holdMs || (quizQuestion ? 3000 : 0)) / 1000) * fps),
+          ),
+        );
+        const countdownFrom = Math.max(
+          audioDelayFrames,
+          durationInFrames - holdFrames,
+        );
         const delayFrames =
           i === 0
             ? hookFrames
@@ -84,11 +104,11 @@ export const ShortVideo: React.FC<
             durationInFrames={durationInFrames}
             key={`scene-${i}`}
           >
-            <KenBurnsClip
-              src={video}
-              durationInFrames={durationInFrames}
-              index={i}
-              kind={scene.kind}
+            <SceneBroll
+              clips={clips}
+              windows={windows}
+              sceneIndex={i}
+              freezeAnswer={quizAnswer}
             />
             {audioDelayFrames > 0 ? (
               <Sequence from={audioDelayFrames}>
@@ -98,6 +118,25 @@ export const ShortVideo: React.FC<
               <Audio src={audio.url} />
             )}
             <SceneSfx sfx={config.sfx} sceneIndex={i} fps={fps} />
+            {windows.map((window, clipIndex) => (
+              <ClipCutSfx
+                key={`inner-whoosh-${i}-${clipIndex}`}
+                sfx={config.sfx}
+                from={window.from}
+                fps={fps}
+                play={window.from > 0}
+              />
+            ))}
+            <QuizAnswerSfx sfx={config.sfx} fps={fps} play={quizAnswer} />
+            {quizQuestion ? (
+              <QuizCountdown
+                from={countdownFrom}
+                durationInFrames={Math.max(0, durationInFrames - countdownFrom)}
+                fps={fps}
+                tickUrl={config.sfx?.click}
+                variant={variant}
+              />
+            ) : null}
             {hasCard && scene.exampleCard ? (
               <ExampleCardOverlay
                 card={scene.exampleCard}

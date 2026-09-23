@@ -11,7 +11,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -406,4 +406,36 @@ test("stretchSceneDurations pads short speech up to the target length", () => {
 
   expect(total + 2.2).toBeCloseTo(30, 5);
   expect(stretched.every((value) => value > 5)).toBe(true);
+});
+
+test("longer scenes split into two or three B-roll windows", () => {
+  expect(clipCountForDuration(8)).toBe(3);
+  expect(clipCountForDuration(4)).toBe(2);
+  expect(clipCountForDuration(2)).toBe(1);
+  const windows = splitClipWindows(90, 3);
+  expect(windows).toHaveLength(3);
+  expect(windows.reduce((sum, window) => sum + window.durationInFrames, 0)).toBe(
+    90,
+  );
+  expect(windows[1].from).toBe(windows[0].durationInFrames);
+});
+
+test("kinetic captions punch numbers and long words", () => {
+  expect(isPunchCaptionWord("450mg")).toBe(true);
+  expect(isPunchCaptionWord("banana")).toBe(false);
+  expect(isPunchCaptionWord("potassium")).toBe(true);
+});
+
+test("quiz cards are detected for countdown and answer freeze", () => {
+  expect(isQuizQuestionCard({ kind: "quiz", title: "Q1" })).toBe(true);
+  expect(isQuizAnswerCard({ kind: "quiz", title: "B" })).toBe(true);
+  expect(
+    sceneClips({
+      video: "a.mp4",
+      clips: [
+        { url: "a.mp4" },
+        { url: "b.mp4" },
+      ],
+    }),
+  ).toHaveLength(2);
 });

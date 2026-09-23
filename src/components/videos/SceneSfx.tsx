@@ -23,6 +23,42 @@ export const SceneSfx: React.FC<{
   );
 };
 
+export const ClipCutSfx: React.FC<{
+  sfx?: SfxUrls;
+  from: number;
+  fps: number;
+  play: boolean;
+}> = ({ sfx, from, fps, play }) => {
+  if (!play || !sfx?.whoosh || from <= 0) {
+    return null;
+  }
+  const whooshFrames = Math.max(6, Math.round(0.16 * fps));
+  return (
+    <Sequence from={from} durationInFrames={whooshFrames} name="InnerWhoosh">
+      <Audio src={sfx.whoosh} volume={0.12} />
+    </Sequence>
+  );
+};
+
+export const QuizAnswerSfx: React.FC<{
+  sfx?: SfxUrls;
+  fps: number;
+  play: boolean;
+}> = ({ sfx, fps, play }) => {
+  if (!play || !sfx?.sting) {
+    return null;
+  }
+  return (
+    <Sequence
+      from={0}
+      durationInFrames={Math.max(8, Math.round(0.28 * fps))}
+      name="AnswerSting"
+    >
+      <Audio src={sfx.sting} volume={0.22} />
+    </Sequence>
+  );
+};
+
 export const EndCardSfx: React.FC<{
   sfx?: SfxUrls;
   from: number;

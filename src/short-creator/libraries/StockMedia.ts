@@ -80,4 +80,42 @@ export class StockMedia {
       ? lastError
       : new Error("No stock clip found");
   }
+
+  async findClips(
+    searchTerms: string[],
+    minDurationSeconds: number,
+    excludeIds: string[] = [],
+    orientation: OrientationEnum = OrientationEnum.portrait,
+    count = 3,
+  ): Promise<Video[]> {
+    const wanted = Math.max(1, Math.min(3, count));
+    const clips: Video[] = [];
+    const excluded = [...excludeIds];
+    const queries = searchQueriesFor(searchTerms);
+    const perClipSeconds = Math.max(2.5, minDurationSeconds / wanted);
+
+    for (let i = 0; i < wanted; i += 1) {
+      const rotated = queries.length
+        ? [queries[i % queries.length], ...queries.filter((_, index) => index !== i % queries.length)]
+        : searchTerms;
+      try {
+        const clip = await this.findClip(
+          rotated.slice(0, 3),
+          perClipSeconds,
+          excluded,
+          orientation,
+        );
+        clips.push(clip);
+        excluded.push(clip.id);
+      } catch (error: unknown) {
+        logger.debug({ error, attempt: i }, "Could not find extra B-roll clip");
+        break;
+      }
+    }
+
+    if (clips.length === 0) {
+      throw new Error("No stock clip found");
+    }
+    return clips;
+  }
 }

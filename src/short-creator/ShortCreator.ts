@@ -16,7 +16,7 @@ import { StockMedia } from "./libraries/StockMedia";
 import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
-import { stretchSceneDurations } from "../components/utils";
+import { stretchSceneDurations, clipCountForDuration } from "../components/utils";
 import type {
   SceneInput,
   RenderConfig,
@@ -176,36 +176,47 @@ export class ShortCreator {
     }
 
     for (const item of prepared) {
-      const clip = await this.stockMedia.findClip(
+      const wanted = clipCountForDuration(item.audioLength);
+      const found = await this.stockMedia.findClips(
         item.input.searchTerms,
-        item.audioLength,
+        Math.max(2.5, item.audioLength / wanted),
         excludeVideoIds,
         orientation,
+        wanted,
       );
-      const isImage = clip.kind === "image";
-      const tempMediaFileName = `${item.tempId}.${isImage ? "jpg" : "mp4"}`;
-      const tempMediaPath = path.join(
-        this.config.tempDirPath,
-        tempMediaFileName,
-      );
-      tempFiles.push(tempMediaPath);
-
-      logger.debug(
-        `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
-      );
-      await downloadHttpFile(clip.url, tempMediaPath);
-      excludeVideoIds.push(clip.id);
+      const clips = [];
+      for (let clipIndex = 0; clipIndex < found.length; clipIndex += 1) {
+        const clip = found[clipIndex];
+        const isImage = clip.kind === "image";
+        const tempMediaFileName = `${item.tempId}-c${clipIndex}.${isImage ? "jpg" : "mp4"}`;
+        const tempMediaPath = path.join(
+          this.config.tempDirPath,
+          tempMediaFileName,
+        );
+        tempFiles.push(tempMediaPath);
+        logger.debug(
+          `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
+        );
+        await downloadHttpFile(clip.url, tempMediaPath);
+        excludeVideoIds.push(clip.id);
+        clips.push({
+          url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
+          kind: clip.kind,
+        });
+      }
 
       scenes.push({
         captions: item.captions,
-        video: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
+        video: clips[0].url,
+        clips,
         audio: {
           url: this.remotionAssetUrl(`/api/tmp/${item.tempId}.mp3`),
           duration: item.audioLength,
         },
         overlayText: item.input.overlayText?.trim() || undefined,
         exampleCard: item.input.exampleCard,
-        kind: clip.kind,
+        kind: clips[0].kind,
+        holdMs: item.input.holdMs,
       });
 
       totalDuration += item.audioLength;

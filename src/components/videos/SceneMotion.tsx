@@ -1,10 +1,14 @@
 import {
   AbsoluteFill,
+  Freeze,
   Img,
   OffthreadVideo,
+  Sequence,
   interpolate,
   useCurrentFrame,
+  useVideoConfig,
 } from "remotion";
+import type { ReactNode } from "react";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
 
 const { fontFamily } = loadFont();
@@ -14,8 +18,10 @@ export const KenBurnsClip: React.FC<{
   durationInFrames: number;
   index: number;
   kind?: "video" | "image";
-}> = ({ src, durationInFrames, index, kind }) => {
+  freeze?: boolean;
+}> = ({ src, durationInFrames, index, kind, freeze }) => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const zoomIn = index % 2 === 0;
   const scale = interpolate(
     frame,
@@ -34,22 +40,138 @@ export const KenBurnsClip: React.FC<{
     objectFit: "cover" as const,
   };
 
+  const media = isImage ? (
+    <Img src={src} style={mediaStyle} />
+  ) : freeze ? (
+    <OffthreadVideo
+      src={src}
+      muted
+      toneMapped={false}
+      acceptableTimeShiftInSeconds={1}
+      style={mediaStyle}
+    />
+  ) : (
+    <LoopingVideo src={src} durationInFrames={durationInFrames} fps={fps} />
+  );
+
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
       <AbsoluteFill style={{ transform: `scale(${scale})` }}>
-        {isImage ? (
-          <Img src={src} style={mediaStyle} />
-        ) : (
-          <OffthreadVideo
-            src={src}
-            muted
-            toneMapped={false}
-            acceptableTimeShiftInSeconds={1}
-            style={mediaStyle}
-          />
-        )}
+        {freeze ? <Freeze frame={4}>{media}</Freeze> : media}
       </AbsoluteFill>
     </AbsoluteFill>
+  );
+};
+
+const LoopingVideo: React.FC<{
+  src: string;
+  durationInFrames: number;
+  fps: number;
+}> = ({ src, durationInFrames, fps }) => {
+  const restartEvery = Math.max(40, Math.round(fps * 3.2));
+  const loops = Math.max(1, Math.ceil(durationInFrames / restartEvery));
+  const mediaStyle = {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover" as const,
+  };
+
+  return (
+    <>
+      {Array.from({ length: loops }, (_, index) => {
+        const from = index * restartEvery;
+        const length = Math.min(restartEvery, durationInFrames - from);
+        if (length <= 0) {
+          return null;
+        }
+        return (
+          <Sequence
+            key={`loop-${index}`}
+            from={from}
+            durationInFrames={length}
+          >
+            <OffthreadVideo
+              src={src}
+              muted
+              toneMapped={false}
+              acceptableTimeShiftInSeconds={1}
+              style={mediaStyle}
+            />
+          </Sequence>
+        );
+      })}
+    </>
+  );
+};
+
+export const CutHit: React.FC<{
+  strong?: boolean;
+  children: ReactNode;
+}> = ({ strong = false, children }) => {
+  const frame = useCurrentFrame();
+  const flash = interpolate(
+    frame,
+    [0, 2, strong ? 8 : 5],
+    strong ? [0.72, 0.28, 0] : [0.42, 0.14, 0],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    },
+  );
+  const punch = interpolate(
+    frame,
+    [0, 3, 9],
+    strong ? [1.16, 1.06, 1] : [1.1, 1.03, 1],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    },
+  );
+
+  return (
+    <AbsoluteFill>
+      <AbsoluteFill style={{ transform: `scale(${punch})` }}>{children}</AbsoluteFill>
+      <AbsoluteFill
+        style={{
+          backgroundColor: `rgba(255,255,255,${flash})`,
+          pointerEvents: "none",
+        }}
+      />
+    </AbsoluteFill>
+  );
+};
+
+export const SceneBroll: React.FC<{
+  clips: { url: string; kind?: "video" | "image" }[];
+  windows: { from: number; durationInFrames: number }[];
+  sceneIndex: number;
+  freezeAnswer?: boolean;
+}> = ({ clips, windows, sceneIndex, freezeAnswer }) => {
+  return (
+    <>
+      {windows.map((window, index) => {
+        const clip = clips[index] || clips[clips.length - 1];
+        const skipHit = sceneIndex === 0 && index === 0;
+        const media = (
+          <KenBurnsClip
+            src={clip.url}
+            durationInFrames={window.durationInFrames}
+            index={sceneIndex * 3 + index}
+            kind={clip.kind}
+            freeze={Boolean(freezeAnswer && index === windows.length - 1)}
+          />
+        );
+        return (
+          <Sequence
+            key={`broll-${sceneIndex}-${index}`}
+            from={window.from}
+            durationInFrames={window.durationInFrames}
+          >
+            {skipHit ? media : <CutHit strong={Boolean(freezeAnswer)}>{media}</CutHit>}
+          </Sequence>
+        );
+      })}
+    </>
   );
 };
 

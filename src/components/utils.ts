@@ -17,6 +17,14 @@ export const shortVideoSchema = z.object({
         duration: z.number(),
       }),
       video: z.string(),
+      clips: z
+        .array(
+          z.object({
+            url: z.string(),
+            kind: z.enum(["video", "image"]).optional(),
+          }),
+        )
+        .optional(),
       overlayText: z.string().optional(),
       exampleCard: z
         .object({
@@ -26,6 +34,7 @@ export const shortVideoSchema = z.object({
         })
         .optional(),
       kind: z.enum(["video", "image"]).optional(),
+      holdMs: z.number().optional(),
     }),
   ),
   config: z.object({
@@ -191,6 +200,70 @@ export function getSceneSequence({
   const durationInFrames =
     index === 0 ? spokenFrames + hookExtra : spokenFrames;
   return { startFrame, durationInFrames };
+}
+
+export function clipCountForDuration(seconds: number): number {
+  if (seconds >= 6) {
+    return 3;
+  }
+  if (seconds >= 3) {
+    return 2;
+  }
+  return 1;
+}
+
+export function splitClipWindows(
+  durationInFrames: number,
+  clipCount: number,
+): { from: number; durationInFrames: number }[] {
+  const total = Math.max(1, durationInFrames);
+  const n = Math.max(1, Math.min(Math.max(1, clipCount), total));
+  const base = Math.floor(total / n);
+  const remainder = total - base * n;
+  const windows: { from: number; durationInFrames: number }[] = [];
+  let from = 0;
+  for (let i = 0; i < n; i += 1) {
+    const length = Math.max(1, base + (i < remainder ? 1 : 0));
+    windows.push({ from, durationInFrames: length });
+    from += length;
+  }
+  return windows;
+}
+
+export function sceneClips(scene: {
+  video: string;
+  kind?: "video" | "image";
+  clips?: { url: string; kind?: "video" | "image" }[];
+}): { url: string; kind?: "video" | "image" }[] {
+  if (scene.clips && scene.clips.length > 0) {
+    return scene.clips;
+  }
+  return [{ url: scene.video, kind: scene.kind }];
+}
+
+export function isQuizQuestionCard(card?: {
+  title?: string;
+  kind?: string;
+}): boolean {
+  return card?.kind === "quiz" && /^Q\d+/i.test(card.title || "");
+}
+
+export function isQuizAnswerCard(card?: {
+  title?: string;
+  kind?: string;
+}): boolean {
+  return card?.kind === "quiz" && /^[A-D]$/i.test(card.title || "");
+}
+
+export function isPunchCaptionWord(text: string): boolean {
+  const token = text.replace(/[^\w%]/g, "");
+  if (!token) {
+    return false;
+  }
+  if (/\d/.test(token)) {
+    return true;
+  }
+  return token.length >= 7;
 }
 
 export function stretchSceneDurations(
