@@ -266,8 +266,9 @@ Then rebuild.''')
   post {
     success {
       echo "Short Video Maker ${params.DEPLOY_ENV} build #${env.BUILD_NUMBER} succeeded"
-      echo "UI/API: http://187.127.138.86:3123"
-      echo "Health: http://187.127.138.86:3123/health"
+      echo "UI/API: https://shorts.doxstation.com"
+      echo "Direct: http://187.127.138.86:3123"
+      echo "Health: https://shorts.doxstation.com/health"
     }
     failure {
       echo "Short Video Maker build #${env.BUILD_NUMBER} failed — check stage logs"

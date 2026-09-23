@@ -17,6 +17,16 @@ This app is a **single container**: UI + REST + MCP on port **3123**.
 
 Host **:80/:443** is owned by **aicoder-nginx**. Short Video Maker does **not** bind port 80.
 
+`aicoder-nginx` proxies:
+
+| Host | Path | Target |
+|------|------|--------|
+| `shorts.doxstation.com` | `/` | `host.docker.internal:3123` (shortvideo-app) |
+| `doxstation.com` | `/` | AI Teacher web `:3000` |
+| `play.doxstation.com` | `/` | AI Coder |
+
+After changing aicoder nginx config, rebuild/restart `aicoder-nginx` on the VPS. DNS: Hostinger A record `shorts` → `187.127.138.86`.
+
 Direct access (same as AI Teacher’s `:3000` / `:8000`):
 
 | Service | URL |
@@ -25,7 +35,7 @@ Direct access (same as AI Teacher’s `:3000` / `:8000`):
 | Health | `http://YOUR_VPS_IP:3123/health` |
 | Create UI | `http://YOUR_VPS_IP:3123/create` |
 
-Optional: add a host in `aicoder-nginx` that proxies `shorts.doxstation.com` → `host.docker.internal:3123`. Do not run a second nginx on host :80.
+Optional: if nginx is not rebuilt yet, use `http://YOUR_VPS_IP:3123` directly. Do not run a second nginx on host :80.
 
 ## Jenkins setup
 
@@ -48,9 +58,10 @@ Optional: add a host in `aicoder-nginx` that proxies `shorts.doxstation.com` →
 
 | Service | URL |
 |---------|-----|
+| UI (domain) | `https://shorts.doxstation.com` |
+| Health | `https://shorts.doxstation.com/health` |
+| Create | `https://shorts.doxstation.com/create` |
 | UI (direct) | `http://187.127.138.86:3123` |
-| Health | `http://187.127.138.86:3123/health` |
-| Create | `http://187.127.138.86:3123/create` |
 
 ## Manual deploy (without Jenkins)
 

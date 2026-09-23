@@ -445,7 +445,7 @@ Quick summary:
 
 1. Create Jenkins credential Secret file ID: `shortvideo-env-file` (from `shortvideo.env.example`)
 2. Pipeline uses root `Jenkinsfile` → builds `shortvideo-app` → `docker compose up -d`
-3. UI + API on port **3123** (`http://YOUR_VPS_IP:3123`)
+3. UI + API on port **3123** (`https://shorts.doxstation.com`, or `http://YOUR_VPS_IP:3123`)
 
 Manual VPS tips if you are not using Jenkins:
 
