@@ -15,51 +15,61 @@ export class StockMedia {
     minDurationSeconds: number,
     excludeIds: string[] = [],
     orientation: OrientationEnum = OrientationEnum.portrait,
+    options: { quick?: boolean } = {},
   ): Promise<Video> {
     const queries = searchQueriesFor(searchTerms);
+    const terms = options.quick ? queries.slice(0, 2) : queries;
     const attempts: Array<() => Promise<Video>> = [];
 
-    for (const term of queries) {
+    for (const term of terms) {
       attempts.push(() =>
         this.pexels.findVideo(
           [term],
           minDurationSeconds,
           excludeIds,
           orientation,
-          5000,
+          4000,
           0,
           false,
         ),
       );
     }
-    if (this.pixabay?.enabled) {
-      for (const term of queries) {
+    if (!options.quick && this.pixabay?.enabled) {
+      for (const term of terms) {
         attempts.push(() =>
           this.pixabay!.findVideo(term, excludeIds, orientation),
         );
       }
     }
-    for (const term of queries) {
-      attempts.push(() => this.pexels.findPhoto(term, excludeIds, orientation));
-    }
-    if (this.pixabay?.enabled) {
-      for (const term of queries) {
+    if (!options.quick) {
+      for (const term of terms) {
         attempts.push(() =>
-          this.pixabay!.findPhoto(term, excludeIds, orientation),
+          this.pexels.findPhoto(term, excludeIds, orientation),
         );
       }
+      if (this.pixabay?.enabled) {
+        for (const term of terms) {
+          attempts.push(() =>
+            this.pixabay!.findPhoto(term, excludeIds, orientation),
+          );
+        }
+      }
+      attempts.push(() =>
+        this.pexels.findVideo(
+          queries,
+          minDurationSeconds,
+          excludeIds,
+          orientation,
+          4000,
+          0,
+          true,
+        ),
+      );
+    } else if (terms[0]) {
+      attempts.push(() =>
+        this.pexels.findPhoto(terms[0], excludeIds, orientation),
+      );
     }
-    attempts.push(() =>
-      this.pexels.findVideo(
-        queries,
-        minDurationSeconds,
-        excludeIds,
-        orientation,
-        5000,
-        0,
-        true,
-      ),
-    );
 
     let lastError: unknown;
     for (const attempt of attempts) {
@@ -89,32 +99,46 @@ export class StockMedia {
     count = 3,
   ): Promise<Video[]> {
     const wanted = Math.max(1, Math.min(3, count));
-    const clips: Video[] = [];
-    const excluded = [...excludeIds];
     const queries = searchQueriesFor(searchTerms);
     const perClipSeconds = Math.max(2.5, minDurationSeconds / wanted);
-
-    for (let i = 0; i < wanted; i += 1) {
-      const rotated = queries.length
-        ? [queries[i % queries.length], ...queries.filter((_, index) => index !== i % queries.length)]
-        : searchTerms;
-      try {
-        const clip = await this.findClip(
-          rotated.slice(0, 3),
-          perClipSeconds,
-          excluded,
-          orientation,
-        );
-        clips.push(clip);
-        excluded.push(clip.id);
-      } catch (error: unknown) {
-        logger.debug({ error, attempt: i }, "Could not find extra B-roll clip");
-        break;
-      }
+    const first = await this.findClip(
+      searchTerms,
+      perClipSeconds,
+      excludeIds,
+      orientation,
+    );
+    if (wanted === 1) {
+      return [first];
     }
 
-    if (clips.length === 0) {
-      throw new Error("No stock clip found");
+    const extras = await Promise.all(
+      Array.from({ length: wanted - 1 }, (_, index) => {
+        const rotated = queries.length
+          ? [
+              queries[(index + 1) % queries.length],
+              ...queries.filter(
+                (_, queryIndex) => queryIndex !== (index + 1) % queries.length,
+              ),
+            ]
+          : searchTerms;
+        return this.findClip(
+          rotated.slice(0, 3),
+          perClipSeconds,
+          [...excludeIds, first.id],
+          orientation,
+          { quick: true },
+        ).catch((error: unknown) => {
+          logger.debug({ error, attempt: index }, "Could not find extra B-roll clip");
+          return null;
+        });
+      }),
+    );
+
+    const clips = [first];
+    for (const clip of extras) {
+      if (clip && !clips.some((existing) => existing.id === clip.id)) {
+        clips.push(clip);
+      }
     }
     return clips;
   }

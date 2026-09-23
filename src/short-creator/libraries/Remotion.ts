@@ -48,7 +48,7 @@ export class Remotion {
     logger.debug({ component, videoID: id }, "Rendering video with Remotion");
 
     const outputLocation = path.join(this.config.videosDirPath, `${id}.mp4`);
-    const maxAttempts = 3;
+    const maxAttempts = 2;
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -67,6 +67,8 @@ export class Remotion {
           concurrency: this.config.concurrency ?? 1,
           offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes,
           timeoutInMilliseconds: 180000,
+          x264Preset: this.config.runningInDocker ? "ultrafast" : "veryfast",
+          jpegQuality: 60,
         });
         lastError = undefined;
         break;

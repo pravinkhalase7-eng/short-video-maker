@@ -266,6 +266,23 @@ export function isPunchCaptionWord(text: string): boolean {
   return token.length >= 7;
 }
 
+export function captionsFromSpeech(
+  text: string,
+  durationSec: number,
+): Caption[] {
+  const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const spokenMs = Math.max(400, durationSec * 1000);
+  if (words.length === 0) {
+    return [{ text: " ", startMs: 0, endMs: spokenMs }];
+  }
+  const each = spokenMs / words.length;
+  return words.map((word, index) => ({
+    text: index === 0 ? word : ` ${word}`,
+    startMs: Math.round(index * each),
+    endMs: Math.round((index + 1) * each),
+  }));
+}
+
 export function stretchSceneDurations(
   durations: number[],
   targetTotalSec: number,

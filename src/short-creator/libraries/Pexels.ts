@@ -5,9 +5,9 @@ import { OrientationEnum, type Video } from "../../types/shorts";
 import { matchesSearchText } from "./stockRelevance";
 
 const jokerTerms: string[] = ["nature", "globe", "space", "ocean"];
-const durationBufferSeconds = 3;
-const defaultTimeoutMs = 5000;
-const retryTimes = 3;
+const durationBufferSeconds = 1;
+const defaultTimeoutMs = 4000;
+const retryTimes = 1;
 
 export class PexelsAPI {
   constructor(private API_KEY: string) {}
@@ -29,7 +29,7 @@ export class PexelsAPI {
     const headers = new Headers();
     headers.append("Authorization", this.API_KEY);
     const response = await fetch(
-      `https://api.pexels.com/videos/search?orientation=${orientation}&size=medium&per_page=80&query=${encodeURIComponent(searchTerm)}`,
+      `https://api.pexels.com/videos/search?orientation=${orientation}&size=medium&per_page=20&query=${encodeURIComponent(searchTerm)}`,
       {
         method: "GET",
         headers,
@@ -272,6 +272,19 @@ export function pickPexelsVideoFile({
     return undefined;
   }
 
+  const compact = video.video_files.find(
+    (file) => file.width === 720 && file.height === 1280,
+  );
+  if (compact) {
+    return {
+      id: String(video.id),
+      url: compact.link,
+      width: compact.width,
+      height: compact.height,
+      kind: "video",
+    };
+  }
+
   const exact = video.video_files.find(
     (file) =>
       file.quality === "hd" &&
@@ -288,7 +301,9 @@ export function pickPexelsVideoFile({
     };
   }
 
-  const targetPixels = requiredVideoWidth * requiredVideoHeight;
+  const targetPixels = Math.round(
+    orientation === OrientationEnum.portrait ? 720 * 1280 : 1280 * 720,
+  );
   const maxPixels = Math.round(targetPixels * 1.15);
   const oriented = video.video_files
     .filter((file) =>

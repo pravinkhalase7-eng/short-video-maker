@@ -68,7 +68,7 @@ const LoopingVideo: React.FC<{
   durationInFrames: number;
   fps: number;
 }> = ({ src, durationInFrames, fps }) => {
-  const restartEvery = Math.max(40, Math.round(fps * 3.2));
+  const restartEvery = Math.max(80, Math.round(fps * 8));
   const loops = Math.max(1, Math.ceil(durationInFrames / restartEvery));
   const mediaStyle = {
     width: "100%",

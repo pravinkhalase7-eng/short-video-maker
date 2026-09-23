@@ -11,7 +11,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -424,6 +424,13 @@ test("kinetic captions punch numbers and long words", () => {
   expect(isPunchCaptionWord("450mg")).toBe(true);
   expect(isPunchCaptionWord("banana")).toBe(false);
   expect(isPunchCaptionWord("potassium")).toBe(true);
+});
+
+test("captionsFromSpeech maps spoken words onto audio duration", () => {
+  const captions = captionsFromSpeech("One banana helps", 2);
+  expect(captions).toHaveLength(3);
+  expect(captions[0].text).toBe("One");
+  expect(captions[2].endMs).toBe(2000);
 });
 
 test("quiz cards are detected for countdown and answer freeze", () => {

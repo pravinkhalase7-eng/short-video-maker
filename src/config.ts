@@ -55,6 +55,7 @@ export class Config {
   // docker-specific, performance-related settings to prevent memory issues
   public concurrency?: number;
   public videoCacheSizeInBytes: number | null = null;
+  public whisperCaptions: boolean;
 
   constructor() {
     this.dataDirPath =
@@ -83,6 +84,7 @@ export class Config {
     this.pixabayApiKey = process.env.PIXABAY_API_KEY || undefined;
     this.logLevel = (process.env.LOG_LEVEL || defaultLogLevel) as pino.Level;
     this.whisperVerbose = process.env.WHISPER_VERBOSE === "true";
+    this.whisperCaptions = process.env.WHISPER_CAPTIONS === "true";
     this.port = process.env.PORT ? parseInt(process.env.PORT) : defaultPort;
     this.runningInDocker = process.env.DOCKER === "true";
     this.devMode = process.env.DEV === "true";

@@ -16,7 +16,7 @@ import { StockMedia } from "./libraries/StockMedia";
 import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
-import { stretchSceneDurations, clipCountForDuration } from "../components/utils";
+import { stretchSceneDurations, clipCountForDuration, captionsFromSpeech } from "../components/utils";
 import type {
   SceneInput,
   RenderConfig,
@@ -120,7 +120,6 @@ export class ShortCreator {
       audioLength: number;
       captions: Scene["captions"];
       tempId: string;
-      tempWavPath: string;
       tempMp3Path: string;
     }[] = [];
 
@@ -130,7 +129,8 @@ export class ShortCreator {
         scene.text,
         config.voice ?? "af_heart",
       );
-      let { audioLength } = audio;
+      const spokenLength = audio.audioLength;
+      let audioLength = spokenLength;
       const { audio: audioStream } = audio;
       if (scene.holdMs) {
         audioLength += scene.holdMs / 1000;
@@ -140,14 +140,19 @@ export class ShortCreator {
       }
 
       const tempId = cuid();
-      const tempWavFileName = `${tempId}.wav`;
       const tempMp3FileName = `${tempId}.mp3`;
-      const tempWavPath = path.join(this.config.tempDirPath, tempWavFileName);
       const tempMp3Path = path.join(this.config.tempDirPath, tempMp3FileName);
-      tempFiles.push(tempWavPath, tempMp3Path);
+      tempFiles.push(tempMp3Path);
 
-      await this.ffmpeg.saveNormalizedAudio(audioStream, tempWavPath);
-      const captions = await this.whisper.CreateCaption(tempWavPath);
+      let captions: Scene["captions"];
+      if (this.config.whisperCaptions) {
+        const tempWavPath = path.join(this.config.tempDirPath, `${tempId}.wav`);
+        tempFiles.push(tempWavPath);
+        await this.ffmpeg.saveNormalizedAudio(audioStream, tempWavPath);
+        captions = await this.whisper.CreateCaption(tempWavPath);
+      } else {
+        captions = captionsFromSpeech(scene.text, spokenLength);
+      }
       await this.ffmpeg.saveToMp3(audioStream, tempMp3Path);
 
       prepared.push({
@@ -155,7 +160,6 @@ export class ShortCreator {
         audioLength,
         captions,
         tempId,
-        tempWavPath,
         tempMp3Path,
       });
       index++;
@@ -184,26 +188,29 @@ export class ShortCreator {
         orientation,
         wanted,
       );
-      const clips = [];
-      for (let clipIndex = 0; clipIndex < found.length; clipIndex += 1) {
-        const clip = found[clipIndex];
-        const isImage = clip.kind === "image";
-        const tempMediaFileName = `${item.tempId}-c${clipIndex}.${isImage ? "jpg" : "mp4"}`;
-        const tempMediaPath = path.join(
-          this.config.tempDirPath,
-          tempMediaFileName,
-        );
-        tempFiles.push(tempMediaPath);
-        logger.debug(
-          `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
-        );
-        await downloadHttpFile(clip.url, tempMediaPath);
+      const downloaded = await Promise.all(
+        found.map(async (clip, clipIndex) => {
+          const isImage = clip.kind === "image";
+          const tempMediaFileName = `${item.tempId}-c${clipIndex}.${isImage ? "jpg" : "mp4"}`;
+          const tempMediaPath = path.join(
+            this.config.tempDirPath,
+            tempMediaFileName,
+          );
+          tempFiles.push(tempMediaPath);
+          logger.debug(
+            `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
+          );
+          await downloadHttpFile(clip.url, tempMediaPath);
+          return {
+            url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
+            kind: clip.kind,
+          };
+        }),
+      );
+      for (const clip of found) {
         excludeVideoIds.push(clip.id);
-        clips.push({
-          url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
-          kind: clip.kind,
-        });
       }
+      const clips = downloaded;
 
       scenes.push({
         captions: item.captions,
