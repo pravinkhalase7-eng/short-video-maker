@@ -111,6 +111,8 @@ const RELATED_VISUALS: Record<string, string[]> = {
   rain: ["window", "umbrella"],
   honey: ["beehive", "jar"],
   kiwi: ["fruit", "slice"],
+  banana: ["fruit", "peel"],
+  bananas: ["fruit", "peel"],
 };
 
 const SYSTEM_PROMPT = `You create short-form video scripts for an automated video maker.
@@ -155,7 +157,8 @@ Rules:
 - overlayText: a number, 1-3 words, or a tiny quote. Max 18 characters. Skip it when exampleCard is present.
 - exampleCard: required for programming/tech and for numbered facts. Max 6 lines, 40 characters per line. kind "code" must be REAL short code that matches the spoken beat. For a before/after lesson, scene 1 is the verbose version (title BEFORE) and scene 2 is the one-liner (title AFTER). kind "fact" uses title as the number (230%) and body as 2-6 words ("more than an orange").
 - endCardBeats: 2-3 short chips recapping the lesson, e.g. ["BEFORE", "AFTER", "STREAMS"] or ["forEach", "->", "streams"].
-- searchTerms: 2-3 SINGLE visual words. Things Pexels can film. For a concrete topic use the object (honey, jar, beehive). For an abstract topic like agentic AI, use filmable stand-ins (robot, laptop, code, typing) — never abstract words (agentic, autonomous, intelligence, workflow). Not negated words (do not search "water" for "no water"). Put the best filmable subject first in every scene.
+- searchTerms: 2-3 SINGLE visual words. Things Pexels can film. For a concrete topic use the object (banana, honey, jar, beehive). For food, search the food — never body, woman, man, skin, muscle, or gym unless the user asked for fitness. For an abstract topic like agentic AI, use filmable stand-ins (robot, laptop, code, typing) — never abstract words (agentic, autonomous, intelligence, workflow). Not negated words (do not search "water" for "no water"). Put the best filmable subject first in every scene.
+- Stay on the user's topic. If they asked about bananas, every scene must say banana and search banana. Do not switch to a different subject.
 - music must be one of: sad, melancholic, happy, euphoric/high, excited, chill, uneasy, angry, dark, hopeful, contemplative, funny/quirky
 - captionPosition: bottom unless the user asks otherwise
 - voice: Kokoro id. Prefix af=American female, am=American male, bf=British female, bm=British male. Default af_heart. Valid: af_heart, af_alloy, af_aoede, af_bella, af_jessica, af_kore, af_nicole, af_nova, af_river, af_sarah, af_sky, am_adam, am_echo, am_eric, am_fenrir, am_liam, am_michael, am_onyx, am_puck, am_santa, bf_emma, bf_isabella, bm_george, bm_lewis, bf_alice, bf_lily, bm_daniel, bm_fable
@@ -179,6 +182,7 @@ export function generateLocalScript(prompt: string): CreateShortInput {
       hookText,
     ),
     hookText,
+    prompt,
   );
 
   return {
@@ -272,7 +276,7 @@ export class PromptScriptGenerator {
         if (!text) {
           throw new Error(`Gemini ${model} returned empty content`);
         }
-        return parseGeneratedShort(text);
+        return parseGeneratedShort(text, prompt);
       } catch (error: unknown) {
         lastError = error;
         logger.warn({ model, error }, "Gemini model failed");
@@ -315,11 +319,14 @@ export class PromptScriptGenerator {
     if (!text) {
       throw new Error("OpenAI returned empty content");
     }
-    return parseGeneratedShort(text);
+    return parseGeneratedShort(text, prompt);
   }
 }
 
-export function parseGeneratedShort(raw: string): CreateShortInput {
+export function parseGeneratedShort(
+  raw: string,
+  userPrompt?: string,
+): CreateShortInput {
   const jsonText = extractJson(raw);
   const parsed = JSON.parse(jsonText) as {
     scenes?: {
@@ -359,7 +366,7 @@ export function parseGeneratedShort(raw: string): CreateShortInput {
     makeHookText(scenes[0].text);
   const withCards = fillMissingExampleCards(scenes, hookText);
   const result = {
-    scenes: pinTopicSearchTerms(withCards, hookText),
+    scenes: pinTopicSearchTerms(withCards, hookText, userPrompt),
     config: {
       paddingBack: normalizePadding(config.paddingBack),
       music: pickEnum(config.music, MUSIC_VALUES, MusicMoodEnum.chill),
@@ -529,6 +536,30 @@ const HOOK_SKIP_WORDS = new Set([
   "every",
   "eating",
   "eaten",
+  "helps",
+  "help",
+  "benefit",
+  "benefits",
+  "body",
+  "bodies",
+  "woman",
+  "women",
+  "man",
+  "men",
+  "person",
+  "people",
+  "girl",
+  "girls",
+  "guy",
+  "guys",
+  "skin",
+  "muscle",
+  "muscles",
+  "torso",
+  "chest",
+  "fitness",
+  "portrait",
+  "model",
 ]);
 
 const ABSTRACT_SEARCH_WORDS = new Set([
@@ -629,10 +660,13 @@ function filmableTermsFor(topic?: string): string[] {
 export function pinTopicSearchTerms(
   scenes: SceneInput[],
   hookText?: string,
+  userPrompt?: string,
 ): SceneInput[] {
-  const topic =
-    topicVisualWord(hookText || "") ||
-    topicVisualWord(...scenes.map((scene) => scene.text));
+  const topic = topicVisualWord(
+    userPrompt || "",
+    hookText || "",
+    ...scenes.map((scene) => scene.text),
+  );
   const topicVisuals = filmableTermsFor(topic);
   return scenes.map((scene) => {
     const avoided = negatedWords(scene.text);
@@ -644,7 +678,12 @@ export function pinTopicSearchTerms(
     );
     const ordered = uniqueTerms([...topicVisuals, ...cleaned]);
     while (ordered.length < 2) {
-      ordered.push(["laptop", "city", "nature"][ordered.length]);
+      const pad = topicVisuals[ordered.length] || "nature";
+      if (!ordered.includes(pad)) {
+        ordered.push(pad);
+      } else {
+        ordered.push("nature");
+      }
     }
     return { ...scene, searchTerms: ordered.slice(0, 3) };
   });
@@ -995,6 +1034,7 @@ function searchTermsFor(text: string, prompt: string): string[] {
         (word) =>
           word.length > 2 &&
           !STOP_WORDS.has(word) &&
+          !HOOK_SKIP_WORDS.has(word) &&
           !avoided.has(word) &&
           !ABSTRACT_SEARCH_WORDS.has(word),
       ),

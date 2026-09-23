@@ -191,6 +191,28 @@ test("kiwi hook pins kiwi instead of filler words like should", () => {
   expect(result.scenes[0].searchTerms).not.toContain("should");
 });
 
+test("banana health hooks search fruit, not body B-roll", () => {
+  const result = parseGeneratedShort(
+    `{
+    "scenes": [
+      {
+        "text": "One banana delivers 450mg of potassium to stop cramps fast.",
+        "searchTerms": ["body", "muscle", "woman"]
+      }
+    ],
+    "config": {
+      "hookText": "YOUR BODY ON ONE BANANA"
+    }
+  }`,
+    "how banana helps",
+  );
+
+  expect(result.scenes[0].searchTerms[0]).toBe("banana");
+  expect(result.scenes[0].searchTerms).not.toContain("body");
+  expect(result.scenes[0].searchTerms).not.toContain("woman");
+  expect(result.scenes[0].searchTerms).not.toContain("muscle");
+});
+
 test("maps abstract topics like agentic AI to filmable Pexels terms", () => {
   const result = parseGeneratedShort(`{
     "scenes": [
