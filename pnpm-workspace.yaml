@@ -1,3 +1,6 @@
+packages:
+  - '.'
+
 allowBuilds:
   '@ffmpeg-installer/darwin-arm64': true
   '@ffmpeg-installer/darwin-x64': true
