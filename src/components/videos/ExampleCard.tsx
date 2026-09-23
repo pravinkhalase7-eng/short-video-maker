@@ -11,7 +11,7 @@ const CODE_KEYWORDS =
 type Card = {
   title?: string;
   body: string;
-  kind?: "code" | "fact";
+  kind?: "code" | "fact" | "quiz";
 };
 
 export const ExampleCardOverlay: React.FC<{
@@ -45,7 +45,12 @@ export const ExampleCardOverlay: React.FC<{
     extrapolateRight: "clamp",
   });
   const isPortrait = variant === "portrait";
-  const kind = looksLikeCode(body) ? "code" : card.kind || "fact";
+  const kind =
+    card.kind === "quiz"
+      ? "quiz"
+      : looksLikeCode(body)
+        ? "code"
+        : card.kind || "fact";
 
   return (
     <AbsoluteFill
@@ -75,6 +80,8 @@ export const ExampleCardOverlay: React.FC<{
             body={body}
             isPortrait={isPortrait}
           />
+        ) : kind === "quiz" ? (
+          <QuizCard title={card.title} body={body} isPortrait={isPortrait} />
         ) : (
           <FactCard title={card.title} body={body} isPortrait={isPortrait} />
         )}
@@ -206,6 +213,115 @@ const FactCard: React.FC<{
       >
         {body}
       </p>
+    </div>
+  );
+};
+
+const QuizCard: React.FC<{
+  title?: string;
+  body: string;
+  isPortrait: boolean;
+}> = ({ title, body, isPortrait }) => {
+  const options = body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .map((line) => line.match(/^([A-D])[).:\-]\s*(.+)$/i))
+    .flatMap((match) =>
+      match
+        ? [{ letter: match[1].toUpperCase(), text: match[2].trim() }]
+        : [],
+    );
+  const answer = /^[A-D]$/i.test(title || "") ? title!.toUpperCase() : null;
+
+  return (
+    <div
+      style={{
+        margin: "0 auto",
+        width: "100%",
+        maxWidth: isPortrait ? 900 : 1040,
+        borderRadius: 36,
+        padding: isPortrait ? "36px 32px" : "28px 36px",
+        backgroundColor: "rgba(8, 10, 18, 0.88)",
+        border: "2px solid rgba(255,255,255,0.18)",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          marginBottom: 18,
+          fontFamily,
+          fontWeight: 900,
+          fontSize: isPortrait ? 42 : 34,
+          letterSpacing: 1.6,
+          color: answer ? "#7CFFB2" : "#FFD166",
+          textTransform: "uppercase",
+        }}
+      >
+        {answer ? `Answer ${answer}` : title || "Quiz"}
+      </p>
+      {options.length > 0 ? (
+        options.map((option) => {
+          const selected = answer === option.letter;
+          return (
+            <div
+              key={option.letter}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                marginBottom: 12,
+                padding: isPortrait ? "16px 18px" : "12px 16px",
+                borderRadius: 18,
+                backgroundColor: selected
+                  ? "rgba(124, 255, 178, 0.22)"
+                  : "rgba(255,255,255,0.06)",
+                border: selected
+                  ? "2px solid #7CFFB2"
+                  : "1px solid rgba(255,255,255,0.12)",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily,
+                  fontWeight: 900,
+                  fontSize: isPortrait ? 36 : 30,
+                  color: selected ? "#7CFFB2" : "white",
+                  minWidth: 42,
+                }}
+              >
+                {option.letter}
+              </span>
+              <span
+                style={{
+                  fontFamily,
+                  fontWeight: 700,
+                  fontSize: isPortrait ? 32 : 26,
+                  lineHeight: 1.15,
+                  color: "white",
+                  textTransform: "uppercase",
+                }}
+              >
+                {option.text}
+              </span>
+            </div>
+          );
+        })
+      ) : (
+        <p
+          style={{
+            margin: 0,
+            fontFamily,
+            fontWeight: 700,
+            fontSize: isPortrait ? 40 : 32,
+            lineHeight: 1.15,
+            color: "white",
+            textTransform: "uppercase",
+          }}
+        >
+          {body}
+        </p>
+      )}
     </div>
   );
 };

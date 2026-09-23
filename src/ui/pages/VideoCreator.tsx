@@ -17,6 +17,8 @@ import {
   IconButton,
   Divider,
   InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -29,6 +31,9 @@ import {
   VoiceEnum,
   OrientationEnum,
   MusicVolumeEnum,
+  TARGET_DURATION_SECONDS,
+  TargetDurationSec,
+  VideoFormat,
 } from "../../types/shorts";
 
 interface SceneFormData {
@@ -37,13 +42,21 @@ interface SceneFormData {
   overlayText: string;
   exampleCardTitle: string;
   exampleCardBody: string;
+  holdMs: string;
 }
+
+const emptyScene = (): SceneFormData => ({
+  text: "",
+  searchTerms: "",
+  overlayText: "",
+  exampleCardTitle: "",
+  exampleCardBody: "",
+  holdMs: "",
+});
 
 const VideoCreator: React.FC = () => {
   const navigate = useNavigate();
-  const [scenes, setScenes] = useState<SceneFormData[]>([
-    { text: "", searchTerms: "", overlayText: "", exampleCardTitle: "", exampleCardBody: "" },
-  ]);
+  const [scenes, setScenes] = useState<SceneFormData[]>([emptyScene()]);
   const [config, setConfig] = useState<RenderConfig>({
     paddingBack: 2500,
     music: MusicMoodEnum.chill,
@@ -56,6 +69,8 @@ const VideoCreator: React.FC = () => {
     hookDurationMs: 2200,
     endCardText: "",
     endCardCta: "Follow for more",
+    targetDurationSec: 30,
+    format: "story",
   });
 
   const [loading, setLoading] = useState(false);
@@ -93,13 +108,7 @@ const VideoCreator: React.FC = () => {
   const handleAddScene = () => {
     setScenes([
       ...scenes,
-      {
-        text: "",
-        searchTerms: "",
-        overlayText: "",
-        exampleCardTitle: "",
-        exampleCardBody: "",
-      },
+      emptyScene(),
     ]);
   };
 
@@ -140,6 +149,8 @@ const VideoCreator: React.FC = () => {
     try {
       const response = await axios.post("/api/generate-script", {
         prompt: prompt.trim(),
+        targetDurationSec: config.targetDurationSec ?? 30,
+        format: config.format ?? "story",
       });
       const generated = response.data as {
         scenes: SceneInput[];
@@ -154,6 +165,7 @@ const VideoCreator: React.FC = () => {
           overlayText: scene.overlayText ?? "",
           exampleCardTitle: scene.exampleCard?.title ?? "",
           exampleCardBody: scene.exampleCard?.body ?? "",
+          holdMs: scene.holdMs ? String(scene.holdMs) : "",
         })),
       );
       setConfig({
@@ -171,11 +183,18 @@ const VideoCreator: React.FC = () => {
         endCardText: generated.config.endCardText ?? "",
         endCardCta: generated.config.endCardCta ?? "Follow for more",
         endCardBeats: generated.config.endCardBeats,
+        targetDurationSec:
+          generated.config.targetDurationSec ?? config.targetDurationSec ?? 30,
+        format: generated.config.format ?? config.format ?? "story",
       });
       setSuccess(
         generated.source === "local"
-          ? "Draft hook, scenes, and end card filled. Review them, then click Create Video."
-          : "Hook, scenes, takeaway, and settings generated. Review them, then click Create Video.",
+          ? generated.config.format === "quiz"
+            ? "Draft quiz questions filled. Review them, then click Create Video."
+            : "Draft hook, scenes, and end card filled. Review them, then click Create Video."
+          : generated.config.format === "quiz"
+            ? "Quiz questions, options, and answers generated. Review them, then click Create Video."
+            : "Hook, scenes, takeaway, and settings generated. Review them, then click Create Video.",
       );
     } catch (err) {
       setError(
@@ -201,15 +220,15 @@ const VideoCreator: React.FC = () => {
           .map((term) => term.trim())
           .filter((term) => term.length > 0),
         overlayText: scene.overlayText.trim() || undefined,
+        holdMs: scene.holdMs.trim() ? parseInt(scene.holdMs, 10) : undefined,
         exampleCard: scene.exampleCardBody.trim()
           ? {
               title: scene.exampleCardTitle.trim() || undefined,
               body: scene.exampleCardBody.trim(),
-              kind: /[{};=>]|function\s|\bclass\s|\bpublic\s/.test(
+              kind: inferCardKind(
+                scene.exampleCardTitle,
                 scene.exampleCardBody,
-              )
-                ? "code"
-                : "fact",
+              ),
             }
           : undefined,
       }));
@@ -264,18 +283,70 @@ const VideoCreator: React.FC = () => {
           Describe your video
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Enter what you want the short to be about. We will fill a hook,
-          spoken scenes, mid-scene overlays, takeaway, search terms, and
-          settings. You can edit anything before creating the video.
+          Choose a length and format, then enter the topic. Generate fills the
+          hook, spoken scenes, cards, and takeaway. You can edit anything
+          before creating the video. Longer videos take more time to render.
         </Typography>
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid item xs={12} sm={7}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              Length
+            </Typography>
+            <ToggleButtonGroup
+              exclusive
+              fullWidth
+              color="primary"
+              value={config.targetDurationSec ?? 30}
+              onChange={(_event, value: TargetDurationSec | null) => {
+                if (value) {
+                  handleConfigChange("targetDurationSec", value);
+                }
+              }}
+            >
+              {TARGET_DURATION_SECONDS.map((seconds) => (
+                <ToggleButton key={seconds} value={seconds}>
+                  {seconds}s
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </Grid>
+          <Grid item xs={12} sm={5}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              Format
+            </Typography>
+            <ToggleButtonGroup
+              exclusive
+              fullWidth
+              color="primary"
+              value={config.format ?? "story"}
+              onChange={(_event, value: VideoFormat | null) => {
+                if (value) {
+                  handleConfigChange("format", value);
+                }
+              }}
+            >
+              <ToggleButton value="story">Story</ToggleButton>
+              <ToggleButton value="quiz">Quiz</ToggleButton>
+            </ToggleButtonGroup>
+          </Grid>
+        </Grid>
         <TextField
           fullWidth
           multiline
           minRows={3}
-          label="Prompt"
-          placeholder="A 30-second portrait video about morning coffee and starting a focused day. Chill music, female voice."
+          label={config.format === "quiz" ? "Quiz topic" : "Prompt"}
+          placeholder={
+            config.format === "quiz"
+              ? "Java 8 lambdas, or how bananas help your body"
+              : "A 30-second portrait video about morning coffee and starting a focused day. Chill music, female voice."
+          }
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
+          helperText={
+            config.format === "quiz"
+              ? "We will write questions, A/B/C options, a pause, then the answer."
+              : "Describe the short. Generate will size the script to the length you picked."
+          }
           inputProps={{ maxLength: 2000 }}
         />
         <Box display="flex" justifyContent="flex-end" mt={2}>
@@ -291,7 +362,11 @@ const VideoCreator: React.FC = () => {
             onClick={handleGenerateFromPrompt}
             disabled={generating || loading}
           >
-            {generating ? "Generating..." : "Generate scenes"}
+            {generating
+              ? "Generating..."
+              : config.format === "quiz"
+                ? "Generate quiz"
+                : "Generate scenes"}
           </Button>
         </Box>
       </Paper>
@@ -444,8 +519,20 @@ const VideoCreator: React.FC = () => {
                   onChange={(e) =>
                     handleSceneChange(index, "exampleCardBody", e.target.value)
                   }
-                  helperText="Real short code, or a 2-6 word fact. This is the hero visual."
+                  helperText="Code, a 2-6 word fact, or quiz options like A) ... B) ... C) ..."
                   inputProps={{ maxLength: 400 }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Think pause (ms)"
+                  value={scene.holdMs}
+                  onChange={(e) =>
+                    handleSceneChange(index, "holdMs", e.target.value)
+                  }
+                  helperText="Extra hold after speech. Use ~3000 on quiz questions."
                 />
               </Grid>
             </Grid>
@@ -622,3 +709,20 @@ const VideoCreator: React.FC = () => {
 };
 
 export default VideoCreator;
+
+function inferCardKind(
+  title: string,
+  body: string,
+): "code" | "fact" | "quiz" {
+  if (
+    /^Q\d+$/i.test(title.trim()) ||
+    /^[A-D]$/i.test(title.trim()) ||
+    /(?:^|\n)\s*[A-D][).:\-]\s+\S+/i.test(body)
+  ) {
+    return "quiz";
+  }
+  if (/[{};=>]|function\s|\bclass\s|\bpublic\s/.test(body)) {
+    return "code";
+  }
+  return "fact";
+}

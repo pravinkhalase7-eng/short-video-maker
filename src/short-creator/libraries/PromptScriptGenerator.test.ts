@@ -3,6 +3,7 @@ import {
   generateLocalScript,
   parseGeneratedShort,
   pinTopicSearchTerms,
+  scriptLimits,
 } from "./PromptScriptGenerator";
 import {
   MusicMoodEnum,
@@ -10,7 +11,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -344,4 +345,65 @@ test("first scene holds the hook before later scenes start", () => {
   expect(first.durationInFrames).toBe(100 + 55);
   expect(second.startFrame).toBe(100 + 55);
   expect(second.durationInFrames).toBe(125);
+});
+
+test("60 second stories use more scenes than the 30 second default", () => {
+  const short = generateLocalScript("how banana helps", {
+    targetDurationSec: 30,
+    format: "story",
+  });
+  const longer = generateLocalScript("how banana helps", {
+    targetDurationSec: 60,
+    format: "story",
+  });
+
+  expect(short.config.targetDurationSec).toBe(30);
+  expect(longer.config.targetDurationSec).toBe(60);
+  expect(short.scenes.length).toBeGreaterThanOrEqual(
+    scriptLimits({ targetDurationSec: 30, format: "story" }).minScenes,
+  );
+  expect(longer.scenes.length).toBeGreaterThan(short.scenes.length);
+});
+
+test("quiz format writes question and answer scenes with think pauses", () => {
+  const result = generateLocalScript("how banana helps", {
+    targetDurationSec: 30,
+    format: "quiz",
+  });
+
+  expect(result.config.format).toBe("quiz");
+  expect(result.scenes).toHaveLength(4);
+  expect(result.scenes[0].exampleCard?.kind).toBe("quiz");
+  expect(result.scenes[0].exampleCard?.title).toBe("Q1");
+  expect(result.scenes[0].exampleCard?.body).toMatch(/A\)/);
+  expect(result.scenes[0].holdMs).toBe(3000);
+  expect(result.scenes[1].exampleCard?.title).toMatch(/^[A-C]$/);
+  expect(result.scenes[0].searchTerms[0]).toBe("banana");
+  expect(result.config.endCardText).toBe("How many did you get right?");
+});
+
+test("parseGeneratedShort keeps more than four scenes for a 60 second target", () => {
+  const scenes = Array.from({ length: 6 }, (_, index) => ({
+    text: `Banana fact number ${index + 1} keeps the topic on fruit.`,
+    searchTerms: ["banana", "fruit"],
+  }));
+  const result = parseGeneratedShort(
+    JSON.stringify({
+      scenes,
+      config: { hookText: "QUIZ BANANAS" },
+    }),
+    "how banana helps",
+    { targetDurationSec: 60, format: "story" },
+  );
+
+  expect(result.scenes).toHaveLength(6);
+  expect(result.config.targetDurationSec).toBe(60);
+});
+
+test("stretchSceneDurations pads short speech up to the target length", () => {
+  const stretched = stretchSceneDurations([5, 5, 5], 30, 2.2);
+  const total = stretched.reduce((sum, value) => sum + value, 0);
+
+  expect(total + 2.2).toBeCloseTo(30, 5);
+  expect(stretched.every((value) => value > 5)).toBe(true);
 });

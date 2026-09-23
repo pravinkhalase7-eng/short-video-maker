@@ -22,7 +22,7 @@ export const shortVideoSchema = z.object({
         .object({
           title: z.string().optional(),
           body: z.string(),
-          kind: z.enum(["code", "fact"]).optional(),
+          kind: z.enum(["code", "fact", "quiz"]).optional(),
         })
         .optional(),
       kind: z.enum(["video", "image"]).optional(),
@@ -191,6 +191,23 @@ export function getSceneSequence({
   const durationInFrames =
     index === 0 ? spokenFrames + hookExtra : spokenFrames;
   return { startFrame, durationInFrames };
+}
+
+export function stretchSceneDurations(
+  durations: number[],
+  targetTotalSec: number,
+  hookSec = 0,
+): number[] {
+  if (durations.length === 0) {
+    return durations;
+  }
+  const spoken = durations.reduce((sum, value) => sum + value, 0);
+  const extra = targetTotalSec - hookSec - spoken;
+  if (extra <= 0.2) {
+    return durations;
+  }
+  const share = extra / durations.length;
+  return durations.map((value) => value + share);
 }
 
 export function getOverlayTiming({

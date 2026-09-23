@@ -71,11 +71,19 @@ export class APIRouter {
           }
 
           logger.info(
-            { prompt: parsed.data.prompt },
+            {
+              prompt: parsed.data.prompt,
+              targetDurationSec: parsed.data.targetDurationSec,
+              format: parsed.data.format,
+            },
             "Generating script from prompt",
           );
           const generated = await this.promptScriptGenerator.generate(
             parsed.data.prompt,
+            {
+              targetDurationSec: parsed.data.targetDurationSec,
+              format: parsed.data.format,
+            },
           );
           res.status(200).json(generated);
         } catch (error: unknown) {

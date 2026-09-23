@@ -16,6 +16,7 @@ import { StockMedia } from "./libraries/StockMedia";
 import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
+import { stretchSceneDurations } from "../components/utils";
 import type {
   SceneInput,
   RenderConfig,
@@ -114,6 +115,15 @@ export class ShortCreator {
     const orientation: OrientationEnum =
       config.orientation || OrientationEnum.portrait;
 
+    const prepared: {
+      input: SceneInput;
+      audioLength: number;
+      captions: Scene["captions"];
+      tempId: string;
+      tempWavPath: string;
+      tempMp3Path: string;
+    }[] = [];
+
     let index = 0;
     for (const scene of inputScenes) {
       const audio = await this.kokoro.generate(
@@ -122,64 +132,87 @@ export class ShortCreator {
       );
       let { audioLength } = audio;
       const { audio: audioStream } = audio;
-
-      // add the paddingBack in seconds to the last scene
+      if (scene.holdMs) {
+        audioLength += scene.holdMs / 1000;
+      }
       if (index + 1 === inputScenes.length && config.paddingBack) {
         audioLength += config.paddingBack / 1000;
       }
 
       const tempId = cuid();
-      const clip = await this.stockMedia.findClip(
-        scene.searchTerms,
+      const tempWavFileName = `${tempId}.wav`;
+      const tempMp3FileName = `${tempId}.mp3`;
+      const tempWavPath = path.join(this.config.tempDirPath, tempWavFileName);
+      const tempMp3Path = path.join(this.config.tempDirPath, tempMp3FileName);
+      tempFiles.push(tempWavPath, tempMp3Path);
+
+      await this.ffmpeg.saveNormalizedAudio(audioStream, tempWavPath);
+      const captions = await this.whisper.CreateCaption(tempWavPath);
+      await this.ffmpeg.saveToMp3(audioStream, tempMp3Path);
+
+      prepared.push({
+        input: scene,
         audioLength,
+        captions,
+        tempId,
+        tempWavPath,
+        tempMp3Path,
+      });
+      index++;
+    }
+
+    const hookMs = config.hookText?.trim()
+      ? config.hookDurationMs ?? 2200
+      : 0;
+    if (config.targetDurationSec) {
+      const stretched = stretchSceneDurations(
+        prepared.map((item) => item.audioLength),
+        config.targetDurationSec,
+        hookMs / 1000,
+      );
+      prepared.forEach((item, sceneIndex) => {
+        item.audioLength = stretched[sceneIndex];
+      });
+    }
+
+    for (const item of prepared) {
+      const clip = await this.stockMedia.findClip(
+        item.input.searchTerms,
+        item.audioLength,
         excludeVideoIds,
         orientation,
       );
       const isImage = clip.kind === "image";
-      const tempWavFileName = `${tempId}.wav`;
-      const tempMp3FileName = `${tempId}.mp3`;
-      const tempMediaFileName = `${tempId}.${isImage ? "jpg" : "mp4"}`;
-      const tempWavPath = path.join(this.config.tempDirPath, tempWavFileName);
-      const tempMp3Path = path.join(this.config.tempDirPath, tempMp3FileName);
+      const tempMediaFileName = `${item.tempId}.${isImage ? "jpg" : "mp4"}`;
       const tempMediaPath = path.join(
         this.config.tempDirPath,
         tempMediaFileName,
       );
       tempFiles.push(tempMediaPath);
-      tempFiles.push(tempWavPath, tempMp3Path);
 
-      await this.ffmpeg.saveNormalizedAudio(audioStream, tempWavPath);
-      const captions = await this.whisper.CreateCaption(tempWavPath);
-
-      await this.ffmpeg.saveToMp3(audioStream, tempMp3Path);
-
-      logger.debug(`Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`);
+      logger.debug(
+        `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
+      );
       await downloadHttpFile(clip.url, tempMediaPath);
-
       excludeVideoIds.push(clip.id);
 
       scenes.push({
-        captions,
+        captions: item.captions,
         video: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
         audio: {
-          url: this.remotionAssetUrl(`/api/tmp/${tempMp3FileName}`),
-          duration: audioLength,
+          url: this.remotionAssetUrl(`/api/tmp/${item.tempId}.mp3`),
+          duration: item.audioLength,
         },
-        overlayText: scene.overlayText?.trim() || undefined,
-        exampleCard: scene.exampleCard,
+        overlayText: item.input.overlayText?.trim() || undefined,
+        exampleCard: item.input.exampleCard,
         kind: clip.kind,
       });
 
-      totalDuration += audioLength;
-      index++;
+      totalDuration += item.audioLength;
     }
 
     const selectedMusic = this.findMusic(totalDuration, config.music);
     logger.debug({ selectedMusic }, "Selected music for the video");
-
-    const hookMs = config.hookText?.trim()
-      ? config.hookDurationMs ?? 2200
-      : 0;
 
     await this.remotion.render(
       {
