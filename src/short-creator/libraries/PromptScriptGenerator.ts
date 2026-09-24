@@ -3,6 +3,10 @@ import { logger } from "../../logger";
 import { spawnSync } from "node:child_process";
 import { looksLikeCode, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation } from "../../components/utils";
 import {
+  llmQuizExplanation,
+  quizFactsFromScenes,
+} from "./quizExplanation";
+import {
   CaptionPositionEnum,
   MusicMoodEnum,
   MusicVolumeEnum,
@@ -344,13 +348,16 @@ export class PromptScriptGenerator {
     const normalized = normalizeScriptOptions(options, trimmed);
     if (parsePastedQuiz(trimmed)) {
       logger.info("Using the pasted quiz worksheet instead of inventing a new question");
-      return { ...generateLocalScript(trimmed, normalized), source: "local" };
+      return this.withQuizExplanation(
+        { ...generateLocalScript(trimmed, normalized), source: "local" },
+        trimmed,
+      );
     }
     if (this.config.geminiApiKey) {
       try {
         const generated = await this.generateWithGemini(trimmed, normalized);
         logger.info({ source: "gemini" }, "Generated short script with Gemini");
-        return { ...generated, source: "llm" };
+        return this.withQuizExplanation({ ...generated, source: "llm" }, trimmed);
       } catch (error: unknown) {
         logger.warn(error, "Gemini script generation failed, trying fallbacks");
       }
@@ -360,14 +367,39 @@ export class PromptScriptGenerator {
       try {
         const generated = await this.generateWithOpenAI(trimmed, normalized);
         logger.info({ source: "openai" }, "Generated short script with OpenAI");
-        return { ...generated, source: "llm" };
+        return this.withQuizExplanation({ ...generated, source: "llm" }, trimmed);
       } catch (error: unknown) {
         logger.warn(error, "OpenAI script generation failed, using local fallback");
       }
     }
 
     logger.info("Generating short script with local fallback");
-    return { ...generateLocalScript(trimmed, normalized), source: "local" };
+    return this.withQuizExplanation(
+      { ...generateLocalScript(trimmed, normalized), source: "local" },
+      trimmed,
+    );
+  }
+
+  private async withQuizExplanation(
+    result: GeneratedShort,
+    prompt: string,
+  ): Promise<GeneratedShort> {
+    if (result.config.format !== "quiz") {
+      return result;
+    }
+    const facts = quizFactsFromScenes({
+      prompt,
+      scenes: result.scenes,
+      config: result.config,
+    });
+    if (!facts) {
+      throw new Error("Could not read the quiz worksheet for Gemini explanation");
+    }
+    const ai = await llmQuizExplanation(this.config, {
+      ...facts,
+      prompt,
+    });
+    return { ...result, explanation: ai };
   }
 
   private async generateWithGemini(

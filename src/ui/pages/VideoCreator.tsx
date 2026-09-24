@@ -76,6 +76,7 @@ const VideoCreator: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [scriptReady, setScriptReady] = useState(false);
+  const [explanation, setExplanation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -145,6 +146,7 @@ const VideoCreator: React.FC = () => {
 
     setGenerating(true);
     setScriptReady(false);
+    setExplanation("");
     setError(null);
     setSuccess(null);
 
@@ -161,6 +163,7 @@ const VideoCreator: React.FC = () => {
         scenes: SceneInput[];
         config: RenderConfig;
         source?: "llm" | "local";
+        explanation?: string;
       };
 
       setScenes(
@@ -199,6 +202,7 @@ const VideoCreator: React.FC = () => {
         format: generated.config.format ?? config.format ?? "story",
       });
       setScriptReady(true);
+      setExplanation(generated.explanation || "");
       setSuccess(
         generated.source === "local"
           ? generated.config.format === "quiz" && /A[)\]:.\-]\s+\S/.test(prompt)
@@ -253,6 +257,7 @@ const VideoCreator: React.FC = () => {
       const response = await axios.post("/api/short-video", {
         scenes: apiScenes,
         prompt: prompt.trim() || undefined,
+        explanation: explanation.trim() || undefined,
         config:
           config.format === "quiz"
             ? {
@@ -348,6 +353,7 @@ const VideoCreator: React.FC = () => {
               onChange={(_event, value: VideoFormat | null) => {
                 if (value) {
                   setScriptReady(false);
+                  setExplanation("");
                   setConfig((prev) => ({
                     ...prev,
                     format: value,

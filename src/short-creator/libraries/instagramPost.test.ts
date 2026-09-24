@@ -118,3 +118,65 @@ test("list comprehensions get a beginner explanation", () => {
   expect(post.explanation.toLowerCase()).not.toMatch(/walk the snippet/);
   expect(post.explanation.toLowerCase()).not.toMatch(/operator or grouping/);
 });
+
+test("list repetition quizzes explain * copies the list", () => {
+  const post = buildInstagramPost({
+    id: "list-star",
+    prompt:
+      "What is the output?\na = [1, 2, 3]\nprint(a * 2)\nA) [2, 4, 6]\nB) [1, 2, 3, 1, 2, 3]\nC) [1, 2, 3, 2]\nD) Error",
+    scenes: [
+      {
+        text: "What is the output? Lock your guess. Comment A, B, C, or D.",
+        searchTerms: ["python"],
+        exampleCard: {
+          kind: "quiz",
+          title: "Python Quiz",
+          body: "What is the output?\na = [1, 2, 3]\nprint(a * 2)\nA) [2, 4, 6]\nB) [1, 2, 3, 1, 2, 3]\nC) [1, 2, 3, 2]\nD) Error",
+        },
+      },
+      {
+        text: "The answer is B. Check the captions for the explanation. Follow for more.",
+        searchTerms: ["python"],
+        overlayText: "B",
+        exampleCard: {
+          kind: "quiz",
+          title: "Python Quiz",
+          body: "What is the output?\na = [1, 2, 3]\nprint(a * 2)\nA) [2, 4, 6]\nB) [1, 2, 3, 1, 2, 3]\nC) [1, 2, 3, 2]\nD) Error",
+        },
+      },
+    ],
+    config: { format: "quiz" },
+  });
+
+  expect(post.explanation).toMatch(/answer is B/i);
+  expect(post.explanation.toLowerCase()).toMatch(/repeat/);
+  expect(post.explanation).toMatch(/\[1, 2, 3, 1, 2, 3\]/);
+  expect(post.explanation.toLowerCase()).toMatch(/multipl/);
+  expect(post.explanation.toLowerCase()).not.toMatch(/different condition/);
+  expect(post.explanation.toLowerCase()).not.toMatch(/printed expression is a \* 2/);
+});
+
+test("provided LLM explanation wins over the heuristic fallback", () => {
+  const post = buildInstagramPost({
+    id: "llm",
+    prompt: "What is the output?\na = [1, 2, 3]\nprint(a * 2)\nA) [2, 4, 6]\nB) [1, 2, 3, 1, 2, 3]\nC) [1, 2, 3, 2]\nD) Error",
+    explanation:
+      "The answer is B. Star on a list copies the whole list, so [1, 2, 3] * 2 is [1, 2, 3, 1, 2, 3]. A is the usual trap: people think each number is doubled.",
+    scenes: [
+      {
+        text: "What is the output?",
+        searchTerms: ["python"],
+        overlayText: "B",
+        exampleCard: {
+          kind: "quiz",
+          title: "Python Quiz",
+          body: "What is the output?\na = [1, 2, 3]\nprint(a * 2)\nA) [2, 4, 6]\nB) [1, 2, 3, 1, 2, 3]\nC) [1, 2, 3, 2]\nD) Error",
+        },
+      },
+    ],
+    config: { format: "quiz" },
+  });
+
+  expect(post.explanation).toMatch(/Star on a list copies/);
+  expect(post.explanation).toMatch(/usual trap/);
+});

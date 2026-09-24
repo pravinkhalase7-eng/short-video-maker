@@ -675,6 +675,9 @@ function explainQuizWhy(code: string, win: string, _sheet: QuizSheet): string {
   if (/\*\*.*\*\*/.test(code) || /\d+\s*\*\*\s*\d+\s*\*\*\s*\d+/.test(code)) {
     return `** is right-associative, so 2 ** 3 ** 2 is 2 ** (3 ** 2) = 2 ** 9, not (2 ** 3) ** 2. The print is ${win}.`;
   }
+  if (isListRepeat(code)) {
+    return `* on a list repeats the whole list. It does not multiply each number. [1, 2, 3] * 2 is [1, 2, 3] twice, so the print is ${win}.`;
+  }
   if (/\*\s*\d+/.test(code) && /["']/.test(code)) {
     return `Multiplying a string by an integer repeats it. That is why the snippet prints ${win}.`;
   }
@@ -740,6 +743,9 @@ function explainQuizTrap(code: string, sheet: QuizSheet, win: string): string {
     }
     return `The usual trap is grouping left to right, which is not how ** works.`;
   }
+  if (isListRepeat(code)) {
+    return `The trap is thinking * multiplies each number in the list. It only repeats the list.`;
+  }
   if (/\bis\b/.test(code)) {
     return `If you treated is like ==, you would pick the option where both checks are True.`;
   }
@@ -782,6 +788,15 @@ function printedExpression(code: string): string | null {
     return null;
   }
   return expr;
+}
+
+function isListRepeat(code: string): boolean {
+  if (/\*\*/.test(code)) {
+    return false;
+  }
+  const times = /\w+\s*\*\s*\d+|\[[^\]]+\]\s*\*\s*\d+/.test(code);
+  const list = /=\s*\[/.test(code) || /\[[^\]]+\]\s*\*/.test(code);
+  return times && list;
 }
 
 function looksLikeAttributeAssignment(line: string): boolean {

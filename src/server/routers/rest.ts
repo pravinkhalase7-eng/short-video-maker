@@ -104,16 +104,28 @@ export class APIRouter {
 
           logger.info({ input }, "Creating short video");
 
-          const videoId = this.shortCreator.addToQueue(
+          const videoId = await this.shortCreator.addToQueue(
             input.scenes,
             input.config,
             input.prompt,
+            input.explanation,
           );
 
           res.status(201).json({
             videoId,
           });
         } catch (error: unknown) {
+          if (
+            error instanceof Error &&
+            /Gemini|GEMINI_API_KEY|quiz explanation/i.test(error.message)
+          ) {
+            logger.error(error, "Gemini quiz explanation failed");
+            res.status(500).json({
+              error: "Failed to generate quiz explanation",
+              message: error.message,
+            });
+            return;
+          }
           logger.error(error, "Error validating input");
 
           // Handle validation errors specifically

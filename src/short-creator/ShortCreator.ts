@@ -23,6 +23,10 @@ import {
   usesHardcodedWorksheet,
 } from "../components/utils";
 import { buildInstagramPost, type VideoPostMeta } from "./libraries/instagramPost";
+import {
+  llmQuizExplanation,
+  quizFactsFromScenes,
+} from "./libraries/quizExplanation";
 import type {
   SceneInput,
   RenderConfig,
@@ -39,6 +43,7 @@ export class ShortCreator {
     config: RenderConfig;
     id: string;
     prompt?: string;
+    explanation?: string;
   }[] = [];
   private stockMedia: StockMedia;
   constructor(
@@ -67,11 +72,12 @@ export class ShortCreator {
     return "failed";
   }
 
-  public addToQueue(
+  public async addToQueue(
     sceneInput: SceneInput[],
     config: RenderConfig,
     prompt?: string,
-  ): string {
+    explanation?: string,
+  ): Promise<string> {
     // todo add mutex lock
     const id = cuid();
     this.queue.push({
@@ -79,8 +85,17 @@ export class ShortCreator {
       config,
       id,
       prompt,
+      explanation,
     });
-    this.saveVideoMeta(id, sceneInput, config, prompt);
+    let caption = explanation?.trim();
+    if (!caption && config.format === "quiz") {
+      caption = await this.requireGeminiExplanation(
+        sceneInput,
+        config,
+        prompt,
+      );
+    }
+    this.saveVideoMeta(id, sceneInput, config, prompt, caption);
     if (this.queue.length === 1) {
       this.processQueue();
     }
@@ -344,15 +359,29 @@ export class ShortCreator {
     scenes: SceneInput[],
     config: RenderConfig,
     prompt?: string,
+    explanation?: string,
   ): VideoPostMeta {
     const meta = buildInstagramPost({
       id: videoId,
       prompt,
       scenes,
       config,
+      explanation,
     });
     fs.writeJsonSync(this.getVideoMetaPath(videoId), meta, { spaces: 2 });
     return meta;
+  }
+
+  private async requireGeminiExplanation(
+    scenes: SceneInput[],
+    config: RenderConfig,
+    prompt?: string,
+  ): Promise<string> {
+    const facts = quizFactsFromScenes({ prompt, scenes, config });
+    if (!facts) {
+      throw new Error("Could not read the quiz worksheet for Gemini explanation");
+    }
+    return llmQuizExplanation(this.config, { ...facts, prompt });
   }
 
   public deleteVideo(videoId: string): void {

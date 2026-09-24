@@ -22,11 +22,13 @@ export function buildInstagramPost({
   prompt,
   scenes,
   config,
+  explanation: providedExplanation,
 }: {
   id: string;
   prompt?: string;
   scenes: SceneInput[];
   config?: RenderConfig;
+  explanation?: string;
 }): VideoPostMeta {
   const quizCard =
     scenes.find((scene) => scene.exampleCard?.kind === "quiz")?.exampleCard ||
@@ -42,7 +44,7 @@ export function buildInstagramPost({
   const title = isQuiz
     ? quizTitle(sheet, quizCard?.title)
     : storyTitle(config?.hookText, promptText, scenes[0]?.text);
-  const explanation = isQuiz && sheet
+  const generated = isQuiz && sheet
     ? quizInstagramExplanation({
         ...sheet,
         answer:
@@ -54,6 +56,7 @@ export function buildInstagramPost({
           null,
       })
     : storyExplanation(scenes);
+  const explanation = providedExplanation?.replace(/\s+/g, " ").trim() || generated;
   const caption = isQuiz
     ? "Comment A, B, C, or D before you scroll. Follow for more traps."
     : storyCaption(promptText, scenes[0]?.text, config?.endCardCta);

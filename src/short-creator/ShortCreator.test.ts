@@ -190,7 +190,7 @@ test("test me", async () => {
     musicManager,
   );
 
-  const videoId = shortCreator.addToQueue(
+  const videoId = await shortCreator.addToQueue(
     [
       {
         text: "test",
