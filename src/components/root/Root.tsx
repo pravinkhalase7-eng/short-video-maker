@@ -74,6 +74,11 @@ export const RemotionRoot: React.FC = () => {
               pop: "http://localhost:3123/static/sfx/pop.mp3",
               click: "http://localhost:3123/static/sfx/click.mp3",
               sting: "http://localhost:3123/static/sfx/sting.mp3",
+              beep: "http://localhost:3123/static/sfx/beep.mp3",
+              clap: "http://localhost:3123/static/sfx/clap.mp3",
+              correct: "http://localhost:3123/static/sfx/correct.mp3",
+              tick: "http://localhost:3123/static/sfx/tick.mp3",
+              count: "http://localhost:3123/static/sfx/count.mp3",
             },
           },
         }}
@@ -305,6 +310,11 @@ export const RemotionRoot: React.FC = () => {
               pop: "http://localhost:3123/static/sfx/pop.mp3",
               click: "http://localhost:3123/static/sfx/click.mp3",
               sting: "http://localhost:3123/static/sfx/sting.mp3",
+              beep: "http://localhost:3123/static/sfx/beep.mp3",
+              clap: "http://localhost:3123/static/sfx/clap.mp3",
+              correct: "http://localhost:3123/static/sfx/correct.mp3",
+              tick: "http://localhost:3123/static/sfx/tick.mp3",
+              count: "http://localhost:3123/static/sfx/count.mp3",
             },
           },
         }}

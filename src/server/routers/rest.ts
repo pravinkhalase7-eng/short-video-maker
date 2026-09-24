@@ -107,6 +107,7 @@ export class APIRouter {
           const videoId = this.shortCreator.addToQueue(
             input.scenes,
             input.config,
+            input.prompt,
           );
 
           res.status(201).json({
@@ -150,8 +151,10 @@ export class APIRouter {
           return;
         }
         const status = this.shortCreator.status(videoId);
+        const meta = this.shortCreator.getVideoMeta(videoId);
         res.status(200).json({
           status,
+          ...(meta ?? {}),
         });
       },
     );

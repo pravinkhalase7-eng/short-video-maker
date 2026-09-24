@@ -75,6 +75,7 @@ const VideoCreator: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [scriptReady, setScriptReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -143,14 +144,18 @@ const VideoCreator: React.FC = () => {
     }
 
     setGenerating(true);
+    setScriptReady(false);
     setError(null);
     setSuccess(null);
 
     try {
+      const pastedQuiz =
+        /(?:^|\n)\s*A[)\]:.\-]\s+\S/.test(prompt) &&
+        /(?:^|\n)\s*B[)\]:.\-]\s+\S/.test(prompt);
       const response = await axios.post("/api/generate-script", {
         prompt: prompt.trim(),
         targetDurationSec: config.targetDurationSec ?? 30,
-        format: config.format ?? "story",
+        format: pastedQuiz ? "quiz" : config.format ?? "story",
       });
       const generated = response.data as {
         scenes: SceneInput[];
@@ -178,8 +183,14 @@ const VideoCreator: React.FC = () => {
         voice: generated.config.voice ?? VoiceEnum.af_heart,
         orientation: generated.config.orientation ?? OrientationEnum.portrait,
         musicVolume: generated.config.musicVolume ?? MusicVolumeEnum.low,
-        hookText: generated.config.hookText ?? "",
-        hookDurationMs: generated.config.hookDurationMs ?? 2200,
+        hookText:
+          generated.config.format === "quiz"
+            ? ""
+            : generated.config.hookText ?? "",
+        hookDurationMs:
+          generated.config.format === "quiz"
+            ? 0
+            : generated.config.hookDurationMs ?? 2200,
         endCardText: generated.config.endCardText ?? "",
         endCardCta: generated.config.endCardCta ?? "Follow for more",
         endCardBeats: generated.config.endCardBeats,
@@ -187,13 +198,16 @@ const VideoCreator: React.FC = () => {
           generated.config.targetDurationSec ?? config.targetDurationSec ?? 30,
         format: generated.config.format ?? config.format ?? "story",
       });
+      setScriptReady(true);
       setSuccess(
         generated.source === "local"
-          ? generated.config.format === "quiz"
-            ? "Draft quiz questions filled. Review them, then click Create Video."
-            : "Draft hook, scenes, and end card filled. Review them, then click Create Video."
+          ? generated.config.format === "quiz" && /A[)\]:.\-]\s+\S/.test(prompt)
+            ? "Your pasted question was kept. Review the answer, then click Create Video."
+            : generated.config.format === "quiz"
+            ? "One quiz question filled. Review it, then click Create Video."
+            : "Draft scenes and end card filled. Review them, then click Create Video."
           : generated.config.format === "quiz"
-            ? "Quiz questions, options, and answers generated. Review them, then click Create Video."
+            ? "One quiz question, options, and the answer generated. Review them, then click Create Video."
             : "Hook, scenes, takeaway, and settings generated. Review them, then click Create Video.",
       );
     } catch (err) {
@@ -206,8 +220,11 @@ const VideoCreator: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!scriptReady || loading || generating) {
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -235,7 +252,15 @@ const VideoCreator: React.FC = () => {
 
       const response = await axios.post("/api/short-video", {
         scenes: apiScenes,
-        config,
+        prompt: prompt.trim() || undefined,
+        config:
+          config.format === "quiz"
+            ? {
+                ...config,
+                hookText: undefined,
+                hookDurationMs: 0,
+              }
+            : config,
       });
 
       navigate(`/video/${response.data.videoId}`);
@@ -283,8 +308,9 @@ const VideoCreator: React.FC = () => {
           Describe your video
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Choose a length and format, then enter the topic. Generate fills the
-          hook, spoken scenes, cards, and takeaway. You can edit anything
+          Choose a length and format, then enter a topic — or paste a full
+          question with a snippet and A B C D options. Generate fills the
+          spoken scenes, cards, and takeaway. You can edit anything
           before creating the video. Longer videos take more time to render.
         </Typography>
         <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -321,7 +347,14 @@ const VideoCreator: React.FC = () => {
               value={config.format ?? "story"}
               onChange={(_event, value: VideoFormat | null) => {
                 if (value) {
-                  handleConfigChange("format", value);
+                  setScriptReady(false);
+                  setConfig((prev) => ({
+                    ...prev,
+                    format: value,
+                    ...(value === "quiz"
+                      ? { hookText: "", hookDurationMs: 0 }
+                      : {}),
+                  }));
                 }
               }}
             >
@@ -333,24 +366,25 @@ const VideoCreator: React.FC = () => {
         <TextField
           fullWidth
           multiline
-          minRows={3}
-          label={config.format === "quiz" ? "Quiz topic" : "Prompt"}
+          minRows={config.format === "quiz" ? 8 : 3}
+          label={config.format === "quiz" ? "Quiz topic or pasted question" : "Prompt"}
           placeholder={
             config.format === "quiz"
-              ? "Java 8 lambdas, or how bananas help your body"
+              ? "1. What is the output?\nx = [1, 2, 3]\ny = x\ny.append(4)\nprint(x)\n\nA) [1, 2, 3]\nB) [1, 2, 3, 4]\nC) [4, 1, 2, 3]\nD) Error"
               : "A 30-second portrait video about morning coffee and starting a focused day. Chill music, female voice."
           }
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           helperText={
             config.format === "quiz"
-              ? "We will write questions, A/B/C options, a pause, then the answer."
+              ? "Paste a full question with code and A–D options, or type a topic like Java 8 lambdas."
               : "Describe the short. Generate will size the script to the length you picked."
           }
-          inputProps={{ maxLength: 2000 }}
+          inputProps={{ maxLength: 4000 }}
         />
         <Box display="flex" justifyContent="flex-end" mt={2}>
           <Button
+            type="button"
             variant="contained"
             startIcon={
               generating ? (
@@ -371,22 +405,44 @@ const VideoCreator: React.FC = () => {
         </Box>
       </Paper>
 
+      {scriptReady ? (
+        <Box display="flex" justifyContent="center" sx={{ mb: 4 }}>
+          <Button
+            type="button"
+            variant="contained"
+            color="primary"
+            size="large"
+            disabled={loading || generating}
+            onClick={() => handleSubmit()}
+            sx={{ minWidth: 200 }}
+          >
+            {loading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              "Create Video"
+            )}
+          </Button>
+        </Box>
+      ) : null}
+
       <form onSubmit={handleSubmit}>
         <Typography variant="h5" component="h2" gutterBottom>
-          Hook and end card
+          {config.format === "quiz" ? "End card" : "Hook and end card"}
         </Typography>
         <Paper sx={{ p: 3, mb: 4 }}>
           <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="On-screen hook"
-                value={config.hookText || ""}
-                onChange={(e) => handleConfigChange("hookText", e.target.value)}
-                helperText="4-8 words shown in the first seconds. A question or bold claim."
-                inputProps={{ maxLength: 60 }}
-              />
-            </Grid>
+            {config.format === "quiz" ? null : (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="On-screen hook"
+                  value={config.hookText || ""}
+                  onChange={(e) => handleConfigChange("hookText", e.target.value)}
+                  helperText="4-8 words shown in the first seconds. A question or bold claim."
+                  inputProps={{ maxLength: 60 }}
+                />
+              </Grid>
+            )}
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -411,25 +467,27 @@ const VideoCreator: React.FC = () => {
                 inputProps={{ maxLength: 40 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Hook duration (ms)"
-                value={config.hookDurationMs ?? 2200}
-                onChange={(e) =>
-                  handleConfigChange(
-                    "hookDurationMs",
-                    parseInt(e.target.value),
-                  )
-                }
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">ms</InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
+            {config.format === "quiz" ? null : (
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Hook duration (ms)"
+                  value={config.hookDurationMs ?? 2200}
+                  onChange={(e) =>
+                    handleConfigChange(
+                      "hookDurationMs",
+                      parseInt(e.target.value),
+                    )
+                  }
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">ms</InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+            )}
           </Grid>
         </Paper>
 
@@ -505,7 +563,7 @@ const VideoCreator: React.FC = () => {
                   onChange={(e) =>
                     handleSceneChange(index, "exampleCardTitle", e.target.value)
                   }
-                  helperText="BEFORE, AFTER, or a number."
+                  helperText="USA Quiz, or A/B/C for the answer."
                   inputProps={{ maxLength: 24 }}
                 />
               </Grid>
@@ -519,8 +577,8 @@ const VideoCreator: React.FC = () => {
                   onChange={(e) =>
                     handleSceneChange(index, "exampleCardBody", e.target.value)
                   }
-                  helperText="Code, a 2-6 word fact, or quiz options like A) ... B) ... C) ..."
-                  inputProps={{ maxLength: 400 }}
+              helperText="Question, optional code, then A) B) C) D) outputs"
+                  inputProps={{ maxLength: 640 }}
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -532,7 +590,7 @@ const VideoCreator: React.FC = () => {
                   onChange={(e) =>
                     handleSceneChange(index, "holdMs", e.target.value)
                   }
-                  helperText="Extra hold after speech. Use ~3000 on quiz questions."
+                  helperText="Extra hold after speech. Use ~11000 on the quiz question so viewers can think."
                 />
               </Grid>
             </Grid>
@@ -687,22 +745,6 @@ const VideoCreator: React.FC = () => {
           </Grid>
         </Paper>
 
-        <Box display="flex" justifyContent="center">
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            size="large"
-            disabled={loading}
-            sx={{ minWidth: 200 }}
-          >
-            {loading ? (
-              <CircularProgress size={24} color="inherit" />
-            ) : (
-              "Create Video"
-            )}
-          </Button>
-        </Box>
       </form>
     </Box>
   );
@@ -717,6 +759,7 @@ function inferCardKind(
   if (
     /^Q\d+$/i.test(title.trim()) ||
     /^[A-D]$/i.test(title.trim()) ||
+    /quiz$/i.test(title.trim()) ||
     /(?:^|\n)\s*[A-D][).:\-]\s+\S+/i.test(body)
   ) {
     return "quiz";

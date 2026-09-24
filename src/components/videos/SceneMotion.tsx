@@ -141,6 +141,55 @@ export const CutHit: React.FC<{
   );
 };
 
+export const QuizDeskBackground: React.FC = () => {
+  const frame = useCurrentFrame();
+  const drift = interpolate(frame, [0, 200], [0, 1], {
+    extrapolateRight: "extend",
+  });
+  const pulse = interpolate(frame % 40, [0, 20, 40], [0.7, 1, 0.7], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  return (
+    <AbsoluteFill
+      style={{
+        background:
+          "radial-gradient(circle at 20% 15%, #3a1c6e 0%, #12081f 42%, #07060f 100%)",
+      }}
+    >
+      {[
+        { top: "8%", left: "-8%", size: 280, color: "rgba(247,37,133,0.28)" },
+        { top: "62%", left: "58%", size: 340, color: "rgba(76,201,240,0.22)" },
+        { top: "28%", left: "62%", size: 180, color: "rgba(255,209,102,0.2)" },
+      ].map((blob, index) => (
+        <div
+          key={`blob-${index}`}
+          style={{
+            position: "absolute",
+            top: blob.top,
+            left: blob.left,
+            width: blob.size,
+            height: blob.size,
+            borderRadius: 999,
+            backgroundColor: blob.color,
+            filter: "blur(8px)",
+            transform: `translateY(${Math.sin((drift + index) * 6) * 24}px) scale(${0.9 + pulse * 0.12})`,
+          }}
+        />
+      ))}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 22%, transparent 78%, rgba(0,0,0,0.35) 100%)",
+        }}
+      />
+    </AbsoluteFill>
+  );
+};
+
 export const SceneBroll: React.FC<{
   clips: { url: string; kind?: "video" | "image" }[];
   windows: { from: number; durationInFrames: number }[];

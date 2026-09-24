@@ -16,7 +16,13 @@ import { StockMedia } from "./libraries/StockMedia";
 import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
-import { stretchSceneDurations, clipCountForDuration, captionsFromSpeech } from "../components/utils";
+import {
+  stretchSceneDurations,
+  clipCountForDuration,
+  captionsFromSpeech,
+  usesHardcodedWorksheet,
+} from "../components/utils";
+import { buildInstagramPost, type VideoPostMeta } from "./libraries/instagramPost";
 import type {
   SceneInput,
   RenderConfig,
@@ -32,6 +38,7 @@ export class ShortCreator {
     sceneInput: SceneInput[];
     config: RenderConfig;
     id: string;
+    prompt?: string;
   }[] = [];
   private stockMedia: StockMedia;
   constructor(
@@ -60,14 +67,20 @@ export class ShortCreator {
     return "failed";
   }
 
-  public addToQueue(sceneInput: SceneInput[], config: RenderConfig): string {
+  public addToQueue(
+    sceneInput: SceneInput[],
+    config: RenderConfig,
+    prompt?: string,
+  ): string {
     // todo add mutex lock
     const id = cuid();
     this.queue.push({
       sceneInput,
       config,
       id,
+      prompt,
     });
+    this.saveVideoMeta(id, sceneInput, config, prompt);
     if (this.queue.length === 1) {
       this.processQueue();
     }
@@ -140,27 +153,31 @@ export class ShortCreator {
       }
 
       const tempId = cuid();
-      const tempMp3FileName = `${tempId}.mp3`;
-      const tempMp3Path = path.join(this.config.tempDirPath, tempMp3FileName);
-      tempFiles.push(tempMp3Path);
+      const tempAudioFileName = `${tempId}.wav`;
+      const tempAudioPath = path.join(this.config.tempDirPath, tempAudioFileName);
+      tempFiles.push(tempAudioPath);
 
       let captions: Scene["captions"];
       if (this.config.whisperCaptions) {
-        const tempWavPath = path.join(this.config.tempDirPath, `${tempId}.wav`);
+        const tempWavPath = path.join(this.config.tempDirPath, `${tempId}-whisper.wav`);
         tempFiles.push(tempWavPath);
         await this.ffmpeg.saveNormalizedAudio(audioStream, tempWavPath);
         captions = await this.whisper.CreateCaption(tempWavPath);
       } else {
-        captions = captionsFromSpeech(scene.text, spokenLength);
+        captions = captionsFromSpeech(
+          scene.text,
+          spokenLength,
+          speechBoundsFromWav(audioStream),
+        );
       }
-      await this.ffmpeg.saveToMp3(audioStream, tempMp3Path);
+      await fs.writeFile(tempAudioPath, Buffer.from(audioStream));
 
       prepared.push({
         input: scene,
         audioLength,
         captions,
         tempId,
-        tempMp3Path,
+        tempMp3Path: tempAudioPath,
       });
       index++;
     }
@@ -168,7 +185,7 @@ export class ShortCreator {
     const hookMs = config.hookText?.trim()
       ? config.hookDurationMs ?? 2200
       : 0;
-    if (config.targetDurationSec) {
+    if (config.targetDurationSec && config.format !== "quiz") {
       const stretched = stretchSceneDurations(
         prepared.map((item) => item.audioLength),
         config.targetDurationSec,
@@ -180,44 +197,56 @@ export class ShortCreator {
     }
 
     for (const item of prepared) {
-      const wanted = clipCountForDuration(item.audioLength);
-      const found = await this.stockMedia.findClips(
-        item.input.searchTerms,
-        Math.max(2.5, item.audioLength / wanted),
-        excludeVideoIds,
-        orientation,
-        wanted,
-      );
-      const downloaded = await Promise.all(
-        found.map(async (clip, clipIndex) => {
-          const isImage = clip.kind === "image";
-          const tempMediaFileName = `${item.tempId}-c${clipIndex}.${isImage ? "jpg" : "mp4"}`;
-          const tempMediaPath = path.join(
-            this.config.tempDirPath,
-            tempMediaFileName,
-          );
-          tempFiles.push(tempMediaPath);
-          logger.debug(
-            `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
-          );
-          await downloadHttpFile(clip.url, tempMediaPath);
-          return {
-            url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
-            kind: clip.kind,
-          };
-        }),
-      );
-      for (const clip of found) {
-        excludeVideoIds.push(clip.id);
+      const useWorksheet = usesHardcodedWorksheet(config, inputScenes);
+      let clips: { url: string; kind?: "video" | "image" }[];
+      if (useWorksheet) {
+        logger.debug({ videoId }, "Using hardcoded quiz worksheet, skipping stock download");
+        clips = [
+          {
+            url: this.remotionAssetUrl("/static/worksheets/desk.svg"),
+            kind: "image",
+          },
+        ];
+      } else {
+        const wanted = clipCountForDuration(item.audioLength);
+        const found = await this.stockMedia.findClips(
+          item.input.searchTerms,
+          Math.max(2.5, item.audioLength / wanted),
+          excludeVideoIds,
+          orientation,
+          wanted,
+        );
+        const downloaded = await Promise.all(
+          found.map(async (clip, clipIndex) => {
+            const isImage = clip.kind === "image";
+            const tempMediaFileName = `${item.tempId}-c${clipIndex}.${isImage ? "jpg" : "mp4"}`;
+            const tempMediaPath = path.join(
+              this.config.tempDirPath,
+              tempMediaFileName,
+            );
+            tempFiles.push(tempMediaPath);
+            logger.debug(
+              `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
+            );
+            await downloadHttpFile(clip.url, tempMediaPath);
+            return {
+              url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
+              kind: clip.kind,
+            };
+          }),
+        );
+        for (const clip of found) {
+          excludeVideoIds.push(clip.id);
+        }
+        clips = downloaded;
       }
-      const clips = downloaded;
 
       scenes.push({
         captions: item.captions,
         video: clips[0].url,
         clips,
         audio: {
-          url: this.remotionAssetUrl(`/api/tmp/${item.tempId}.mp3`),
+          url: this.remotionAssetUrl(`/api/tmp/${item.tempId}.wav`),
           duration: item.audioLength,
         },
         overlayText: item.input.overlayText?.trim() || undefined,
@@ -246,6 +275,7 @@ export class ShortCreator {
           hookDurationMs: config.hookDurationMs,
           endCardText: config.endCardText,
           endCardCta: config.endCardCta,
+          format: config.format,
           endCardBeats: (() => {
             const beats = (config.endCardBeats || [])
               .map((beat) => beat.trim())
@@ -269,6 +299,11 @@ export class ShortCreator {
             pop: this.remotionAssetUrl("/static/sfx/pop.mp3"),
             click: this.remotionAssetUrl("/static/sfx/click.mp3"),
             sting: this.remotionAssetUrl("/static/sfx/sting.mp3"),
+            beep: this.remotionAssetUrl("/static/sfx/beep.mp3"),
+            clap: this.remotionAssetUrl("/static/sfx/clap.mp3"),
+            correct: this.remotionAssetUrl("/static/sfx/correct.mp3"),
+            tick: this.remotionAssetUrl("/static/sfx/tick.mp3"),
+            count: this.remotionAssetUrl("/static/sfx/count.mp3"),
           },
         },
       },
@@ -287,9 +322,43 @@ export class ShortCreator {
     return path.join(this.config.videosDirPath, `${videoId}.mp4`);
   }
 
+  public getVideoMetaPath(videoId: string): string {
+    return path.join(this.config.videosDirPath, `${videoId}.json`);
+  }
+
+  public getVideoMeta(videoId: string): VideoPostMeta | null {
+    const metaPath = this.getVideoMetaPath(videoId);
+    if (!fs.existsSync(metaPath)) {
+      return null;
+    }
+    try {
+      return fs.readJsonSync(metaPath) as VideoPostMeta;
+    } catch (error: unknown) {
+      logger.error({ error, videoId }, "Failed to read video meta");
+      return null;
+    }
+  }
+
+  private saveVideoMeta(
+    videoId: string,
+    scenes: SceneInput[],
+    config: RenderConfig,
+    prompt?: string,
+  ): VideoPostMeta {
+    const meta = buildInstagramPost({
+      id: videoId,
+      prompt,
+      scenes,
+      config,
+    });
+    fs.writeJsonSync(this.getVideoMetaPath(videoId), meta, { spaces: 2 });
+    return meta;
+  }
+
   public deleteVideo(videoId: string): void {
     const videoPath = this.getVideoPath(videoId);
     fs.removeSync(videoPath);
+    fs.removeSync(this.getVideoMetaPath(videoId));
     logger.debug({ videoId }, "Deleted video file");
   }
 
@@ -329,8 +398,18 @@ export class ShortCreator {
     return Array.from(tags.values());
   }
 
-  public listAllVideos(): { id: string; status: VideoStatus }[] {
-    const videos: { id: string; status: VideoStatus }[] = [];
+  public listAllVideos(): {
+    id: string;
+    status: VideoStatus;
+    title?: string;
+    prompt?: string;
+  }[] {
+    const videos: {
+      id: string;
+      status: VideoStatus;
+      title?: string;
+      prompt?: string;
+    }[] = [];
 
     // Check if videos directory exists
     if (!fs.existsSync(this.config.videosDirPath)) {
@@ -351,7 +430,7 @@ export class ShortCreator {
           status = "processing";
         }
 
-        videos.push({ id: videoId, status });
+        videos.push(this.withListMeta(videoId, status));
       }
     }
 
@@ -359,16 +438,89 @@ export class ShortCreator {
     for (const queueItem of this.queue) {
       const existingVideo = videos.find((v) => v.id === queueItem.id);
       if (!existingVideo) {
-        videos.push({ id: queueItem.id, status: "processing" });
+        videos.push(this.withListMeta(queueItem.id, "processing"));
       }
     }
 
     return videos;
   }
 
+  private withListMeta(
+    videoId: string,
+    status: VideoStatus,
+  ): { id: string; status: VideoStatus; title?: string; prompt?: string } {
+    const meta = this.getVideoMeta(videoId);
+    return {
+      id: videoId,
+      status,
+      title: meta?.title,
+      prompt: meta?.prompt,
+    };
+  }
+
   public ListAvailableVoices(): string[] {
     return this.kokoro.listAvailableVoices();
   }
+}
+
+function speechBoundsFromWav(
+  wav: ArrayBuffer,
+): { startSec: number; endSec: number } | null {
+  const buf = Buffer.from(wav);
+  if (buf.length < 44 || buf.toString("ascii", 0, 4) !== "RIFF") {
+    return null;
+  }
+  const channels = Math.max(1, buf.readUInt16LE(22));
+  const sampleRate = buf.readUInt32LE(24);
+  const bits = buf.readUInt16LE(34);
+  if (bits !== 16 || sampleRate < 8000) {
+    return null;
+  }
+  let offset = 12;
+  let dataStart = 44;
+  let dataLen = buf.length - 44;
+  while (offset + 8 <= buf.length) {
+    const id = buf.toString("ascii", offset, offset + 4);
+    const size = buf.readUInt32LE(offset + 4);
+    if (id === "data") {
+      dataStart = offset + 8;
+      dataLen = size;
+      break;
+    }
+    offset += 8 + size;
+  }
+  const bytesPerSample = 2 * channels;
+  const samples = Math.floor(Math.max(0, dataLen) / bytesPerSample);
+  if (samples < 32) {
+    return null;
+  }
+  const threshold = 700;
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i < samples; i++) {
+    const pos = dataStart + i * bytesPerSample;
+    if (pos + 2 > buf.length) {
+      break;
+    }
+    let peak = 0;
+    for (let channel = 0; channel < channels; channel++) {
+      peak = Math.max(peak, Math.abs(buf.readInt16LE(pos + channel * 2)));
+    }
+    if (peak >= threshold) {
+      if (first < 0) {
+        first = i;
+      }
+      last = i;
+    }
+  }
+  if (first < 0 || last <= first) {
+    return null;
+  }
+  const duration = samples / sampleRate;
+  return {
+    startSec: Math.max(0, first / sampleRate - 0.04),
+    endSec: Math.min(duration, last / sampleRate + 0.1),
+  };
 }
 
 function downloadHttpFile(url: string, dest: string): Promise<void> {

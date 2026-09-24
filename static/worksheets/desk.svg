@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="woodA" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4a2e16"/>
+      <stop offset="45%" stop-color="#7a4e28"/>
+      <stop offset="100%" stop-color="#5c3a1e"/>
+    </linearGradient>
+    <linearGradient id="woodB" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3f2612"/>
+      <stop offset="55%" stop-color="#6b4322"/>
+      <stop offset="100%" stop-color="#4e3218"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="1280" fill="#5a381c"/>
+  <rect y="0" width="720" height="142" fill="url(#woodA)"/>
+  <rect y="142" width="720" height="142" fill="url(#woodB)"/>
+  <rect y="284" width="720" height="142" fill="url(#woodA)"/>
+  <rect y="426" width="720" height="142" fill="url(#woodB)"/>
+  <rect y="568" width="720" height="142" fill="url(#woodA)"/>
+  <rect y="710" width="720" height="142" fill="url(#woodB)"/>
+  <rect y="852" width="720" height="142" fill="url(#woodA)"/>
+  <rect y="994" width="720" height="142" fill="url(#woodB)"/>
+  <rect y="1136" width="720" height="144" fill="url(#woodA)"/>
+</svg>

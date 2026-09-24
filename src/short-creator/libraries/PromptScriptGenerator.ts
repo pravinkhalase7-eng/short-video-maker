@@ -1,6 +1,7 @@
 import { Config } from "../../config";
 import { logger } from "../../logger";
-import { looksLikeCode } from "../../components/utils";
+import { spawnSync } from "node:child_process";
+import { looksLikeCode, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation } from "../../components/utils";
 import {
   CaptionPositionEnum,
   MusicMoodEnum,
@@ -129,11 +130,14 @@ const RELATED_VISUALS: Record<string, string[]> = {
 
 export function normalizeScriptOptions(
   options?: ScriptGenerateOptions,
+  prompt?: string,
 ): NormalizedScriptOptions {
   const duration = options?.targetDurationSec;
   const targetDurationSec =
     duration === 60 || duration === 90 || duration === 120 ? duration : 30;
-  const format = options?.format === "quiz" ? "quiz" : "story";
+  const pastedQuiz = Boolean(prompt && parsePastedQuiz(prompt));
+  const format =
+    options?.format === "quiz" || pastedQuiz ? "quiz" : "story";
   return { targetDurationSec, format };
 }
 
@@ -146,23 +150,22 @@ export function scriptLimits(options: NormalizedScriptOptions): {
 } {
   const { targetDurationSec, format } = options;
   if (format === "quiz") {
-    const questions =
+    const holdMs =
+      targetDurationSec <= 30 ? 11000 : targetDurationSec <= 60 ? 13000 : 14000;
+    const wordTarget =
       targetDurationSec === 120
-        ? 6
+        ? 260
         : targetDurationSec === 90
-          ? 4
+          ? 190
           : targetDurationSec === 60
-            ? 3
-            : 2;
+            ? 120
+            : 55;
     return {
-      questions,
-      minScenes: questions * 2,
-      maxScenes: questions * 2,
-      holdMs: 3000,
-      wordTarget: Math.max(
-        40,
-        Math.round((targetDurationSec - 4.7 - questions * 3) * 2.4),
-      ),
+      questions: 1,
+      minScenes: 2,
+      maxScenes: 2,
+      holdMs,
+      wordTarget,
     };
   }
   const table: Record<
@@ -214,9 +217,9 @@ Story structure (required):
 Rules:
 - English voiceover only. No hashtags, no stage directions.
 - Never start with: "Let's talk about", "Here's what", "In this video", "Stay with me", "Today we", "Did you know" as filler. A real surprising fact is fine.
-- overlayText: a number, 1-3 words, a quiz letter, or a tiny quote. Max 18 characters.
-- exampleCard: required for programming/tech, numbered facts, and every quiz scene. Max 8 lines, 56 characters per line. kind "code" must be REAL short code. kind "fact" uses title as the number (230%) and body as 2-6 words. kind "quiz" is A/B/C options or an answer reveal. Include holdMs on quiz question scenes.
-- endCardBeats: 2-3 short chips recapping the lesson or the quiz answers.
+- overlayText: a number, 1-3 words, a quiz letter, or a tiny quote. Max 18 characters. Omit it on the quiz question scene.
+- exampleCard: required for programming/tech, numbered facts, and every quiz scene. Max 12 lines, 72 characters per line. kind "code" must be REAL short code. kind "fact" uses title as the number (230%) and body as 2-6 words. kind "quiz" is ONE worksheet: question, optional snippet, then A/B/C. For programming quizzes the options are outputs. Include holdMs on the question scene.
+- endCardBeats: 2-3 short chips recapping the lesson or the winning quiz option.
 - searchTerms: 2-3 SINGLE visual words. Things Pexels can film. For a concrete topic use the object (banana, honey, jar, beehive). For food, search the food — never body, woman, man, skin, muscle, or gym unless the user asked for fitness. For an abstract topic like agentic AI, use filmable stand-ins (robot, laptop, code, typing) — never abstract words (agentic, autonomous, intelligence, workflow). Not negated words (do not search "water" for "no water"). Put the best filmable subject first in every scene.
 - Stay on the user's topic. If they asked about bananas, every scene must say banana and search banana. Do not switch to a different subject.
 - music must be one of: sad, melancholic, happy, euphoric/high, excited, chill, uneasy, angry, dark, hopeful, contemplative, funny/quirky
@@ -234,14 +237,24 @@ function buildSystemPrompt(options: NormalizedScriptOptions): string {
     options.format === "quiz"
       ? `DURATION AND FORMAT:
 - QUIZ MODE. Finished video length: ${options.targetDurationSec} seconds.
-- Write exactly ${limits.questions} questions as ${limits.maxScenes} scenes.
-- Each question is TWO scenes: (1) ask and read options A B C, (2) reveal the answer.
-- Question scene: speak the question and the three options. exampleCard.kind is "quiz", title is "Q1"/"Q2"/..., body is three lines "A) ...\\nB) ...\\nC) ...". holdMs is ${limits.holdMs}. overlayText can be "Q1".
-- Answer scene: "The answer is B." plus a concrete reason that names the topic. exampleCard.kind is "quiz", title is the letter, body is the winning option plus a short why. overlayText is the letter. holdMs is 0.
-- hookText like "QUIZ: BANANAS" or "CAN YOU SCORE 3/3?".
-- endCardText: "How many did you get right?"
-- endCardBeats: the answer letters in order.
-- About ${limits.wordTarget} spoken words total. Questions must be real facts about the user's topic.`
+- ONE QUESTION only. Write exactly 2 scenes: (1) ask, (2) reveal. Never write Q2 or a second question.
+- The on-screen card is a catchy quiz card: a title, one question, optional snippet, and labeled options A B C D.
+- Question scene: tell the viewer to read the snippet and pick an output. Do NOT read the code or the option values aloud. exampleCard.kind is "quiz". title is "{Topic} Quiz" (not Q1). holdMs is ${limits.holdMs}. Do not set overlayText.
+- If the user pasted a complete question with a snippet and A B C D choices, use THAT worksheet verbatim. Do not invent a different question or snippet. Only solve it: scene 2 title is the correct letter, and the spoken answer explains why that output happens.
+- PROGRAMMING / CODE TOPICS (Java, Python, JavaScript, lambdas, streams, SQL, APIs): do NOT ask a theory question. Show a short real snippet (2-5 lines, no markdown fences) and ask "What is the output?" Options must be four possible outputs A B C D, including one common trap. Spoken question text MUST be "What is the output? Lock your guess. Comment A, B, C, or D." Never say "read this snippet", "like an editor", the option values, the code, or extra snippet words. Spoken answer text: "The answer is B. Check the captions for the explanation. Follow for more." Do not speak a hint.
+- exampleCard body lines:
+  1) the question, e.g. "What is the output?"
+  2-6) the code snippet if this is a program quiz. Put each statement on its own line. Never start a code line with "A." unless it is the option "A) ..."
+  then "A) ...", "B) ...", "C) ...", "D) ..." as the output choices. Always include the letter and a space after it.
+- Answer scene: "The answer is B. Check the captions for the explanation. Follow for more." Do not speak a hint or the why. exampleCard.kind is "quiz", title is the winning letter only (A, B, C, or D). body is the SAME worksheet lines as the question scene. overlayText is the letter. holdMs is 0.
+- For non-programming topics, a single fact question with A B C D is fine.
+- Do NOT set hookText. The first frame is the question card. Options A B C D appear one by one.
+- music: funny (quirky quiz energy). Do not use chill unless the user asks for chill.
+- musicVolume: medium
+- endCardText: "Did you get it right?"
+- endCardCta: "Follow for more"
+- endCardBeats: the winning output in 2-3 short words.
+- About ${limits.wordTarget} spoken words total.`
       : `DURATION AND FORMAT:
 - STORY MODE. Finished video length: ${options.targetDurationSec} seconds.
 - Write ${limits.minScenes} to ${limits.maxScenes} scenes.
@@ -256,17 +269,22 @@ export function generateLocalScript(
   prompt: string,
   options?: ScriptGenerateOptions,
 ): CreateShortInput {
-  const normalized = normalizeScriptOptions(options);
+  const normalized = normalizeScriptOptions(options, prompt);
   const limits = scriptLimits(normalized);
-  const topic = cleanTopic(prompt);
+  const pasted = parsePastedQuiz(prompt);
+  const topic = pasted ? pastedQuizTopic(pasted) : cleanTopic(prompt);
   const hookText =
-    normalized.format === "quiz"
-      ? makeQuizHookText(topic, limits.questions)
-      : makeHookText(topic);
+    normalized.format === "quiz" ? "" : makeHookText(topic);
   const scenes: SceneInput[] =
     normalized.format === "quiz"
       ? pinTopicSearchTerms(
-          buildLocalQuizScenes(prompt, topic, limits.questions, limits.holdMs),
+          buildLocalQuizScenes(
+            prompt,
+            topic,
+            limits.questions,
+            limits.holdMs,
+            normalized.targetDurationSec,
+          ),
           hookText,
           prompt,
         )
@@ -289,17 +307,17 @@ export function generateLocalScript(
     scenes,
     config: {
       paddingBack: 2500,
-      music: inferMood(prompt),
+      music: inferMood(prompt, normalized.format),
       captionPosition: CaptionPositionEnum.bottom,
       captionBackgroundColor: inferCaptionColor(prompt),
       voice: inferVoice(prompt),
       orientation: inferOrientation(prompt),
-      musicVolume: inferMusicVolume(prompt),
-      hookText,
-      hookDurationMs: 2200,
+      musicVolume: inferMusicVolume(prompt, normalized.format),
+      hookText: hookText || undefined,
+      hookDurationMs: normalized.format === "quiz" ? 0 : 2200,
       endCardText:
         normalized.format === "quiz"
-          ? "How many did you get right?"
+          ? "Did you get it right?"
           : makeEndCardText(
               topic,
               scenes.map((scene) => scene.text),
@@ -323,7 +341,11 @@ export class PromptScriptGenerator {
     options?: ScriptGenerateOptions,
   ): Promise<GeneratedShort> {
     const trimmed = prompt.trim();
-    const normalized = normalizeScriptOptions(options);
+    const normalized = normalizeScriptOptions(options, trimmed);
+    if (parsePastedQuiz(trimmed)) {
+      logger.info("Using the pasted quiz worksheet instead of inventing a new question");
+      return { ...generateLocalScript(trimmed, normalized), source: "local" };
+    }
     if (this.config.geminiApiKey) {
       try {
         const generated = await this.generateWithGemini(trimmed, normalized);
@@ -372,7 +394,7 @@ export class PromptScriptGenerator {
                 role: "user",
                 parts: [
                   {
-                    text: `${buildSystemPrompt(options)}\n\nUser request:\n${prompt}\n\nFormat: ${options.format}. Target duration: ${options.targetDurationSec} seconds.`,
+                    text: `${buildSystemPrompt(options)}\n\nUser request:\n${prompt}${pastedQuizHint(prompt, options)}\n\nFormat: ${options.format}. Target duration: ${options.targetDurationSec} seconds.`,
                   },
                 ],
               },
@@ -429,7 +451,7 @@ export class PromptScriptGenerator {
           { role: "system", content: buildSystemPrompt(options) },
           {
             role: "user",
-            content: `${prompt}\n\nFormat: ${options.format}. Target duration: ${options.targetDurationSec} seconds.`,
+            content: `${prompt}${pastedQuizHint(prompt, options)}\n\nFormat: ${options.format}. Target duration: ${options.targetDurationSec} seconds.`,
           },
         ],
       }),
@@ -456,7 +478,7 @@ export function parseGeneratedShort(
   userPrompt?: string,
   options?: ScriptGenerateOptions,
 ): CreateShortInput {
-  const normalized = normalizeScriptOptions(options);
+  const normalized = normalizeScriptOptions(options, userPrompt);
   const limits = scriptLimits(normalized);
   const jsonText = extractJson(raw);
   const parsed = JSON.parse(jsonText) as {
@@ -481,7 +503,9 @@ export function parseGeneratedShort(
         ),
         overlayText:
           normalizeOverlayText(scene.overlayText) ||
-          makeOverlayText(text, index),
+          (normalized.format === "quiz"
+            ? undefined
+            : makeOverlayText(text, index)),
         exampleCard: normalizeExampleCard(scene.exampleCard),
         holdMs: normalizeHoldMs(scene.holdMs),
       };
@@ -495,22 +519,29 @@ export function parseGeneratedShort(
 
   const config = parsed.config || {};
   const hookText =
-    normalizeOptionalText(config.hookText, 60) ||
-    (normalized.format === "quiz"
-      ? makeQuizHookText(scenes[0].text, limits.questions)
-      : makeHookText(scenes[0].text));
+    normalized.format === "quiz"
+      ? ""
+      : normalizeOptionalText(config.hookText, 60) ||
+        makeHookText(scenes[0].text);
   const withCards =
     normalized.format === "quiz"
-      ? applyQuizHolds(
-          fillMissingQuizCards(scenes, hookText, userPrompt),
+      ? pinPastedQuiz(
+          applyProgrammingQuizSpeech(
+            applyQuizHolds(
+              fillMissingQuizCards(scenes, hookText, userPrompt),
+              limits.holdMs,
+            ),
+          ),
+          userPrompt,
           limits.holdMs,
+          normalized.targetDurationSec,
         )
       : fillMissingExampleCards(scenes, hookText);
   const result = {
     scenes: pinTopicSearchTerms(withCards, hookText, userPrompt),
     config: {
       paddingBack: normalizePadding(config.paddingBack),
-      music: pickEnum(config.music, MUSIC_VALUES, MusicMoodEnum.chill),
+      music: resolveMusic(userPrompt || "", normalized.format, config.music),
       captionPosition: pickEnum(
         config.captionPosition,
         CAPTION_POSITION_VALUES,
@@ -530,14 +561,19 @@ export function parseGeneratedShort(
       musicVolume: pickEnum(
         config.musicVolume,
         MUSIC_VOLUME_VALUES,
-        MusicVolumeEnum.low,
+        normalized.format === "quiz"
+          ? MusicVolumeEnum.medium
+          : MusicVolumeEnum.low,
       ),
-      hookText,
-      hookDurationMs: normalizeHookDuration(config.hookDurationMs),
+      hookText: hookText || undefined,
+      hookDurationMs:
+        normalized.format === "quiz"
+          ? 0
+          : normalizeHookDuration(config.hookDurationMs),
       endCardText:
         normalizeOptionalText(config.endCardText, 90) ||
         (normalized.format === "quiz"
-          ? "How many did you get right?"
+          ? "Did you get it right?"
           : makeEndCardText(
               "",
               scenes.map((scene) => scene.text),
@@ -594,7 +630,7 @@ function normalizeHoldMs(value: unknown): number | undefined {
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return undefined;
   }
-  return Math.min(Math.max(Math.round(parsed), 0), 8000);
+  return Math.min(Math.max(Math.round(parsed), 0), 15000);
 }
 
 function normalizeHookDuration(value: unknown): number {
@@ -921,23 +957,320 @@ function makeHookText(topic: string): string {
   return `Why ${label}?`.slice(0, 48);
 }
 
-function makeQuizHookText(topic: string, questions: number): string {
-  const words = (topic || "this")
+function makeQuizSheetTitle(topic: string): string {
+  const skip = new Set([
+    "how",
+    "what",
+    "why",
+    "which",
+    "does",
+    "do",
+    "the",
+    "a",
+    "an",
+    "your",
+    "my",
+  ]);
+  const words = (topic || "trivia")
     .split(/\s+/)
+    .filter((word) => word && !skip.has(word.toLowerCase()))
+    .slice(0, 2)
+    .map(capitalizeWord);
+  const label = (words.join(" ") || "Trivia").slice(0, 18).trim();
+  return `${label} Quiz`.slice(0, 24);
+}
+
+function padQuizOptions(options: string[]): string[] {
+  const next = options.map((option) => option.trim()).filter(Boolean).slice(0, 4);
+  while (next.length < 4) {
+    next.push(next.length === 3 ? "None of these" : "Error");
+  }
+  return next;
+}
+
+function quizSheetBody(
+  question: string,
+  options: string[],
+  code?: string,
+): string {
+  const letters = ["A", "B", "C", "D"] as const;
+  const codeLines = (code || "")
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim())
+    .slice(0, 6)
+    .map((line) => line.slice(0, 72));
+  return [
+    question.replace(/^\d+[).]\s*/, "").trim(),
+    ...codeLines,
+    ...padQuizOptions(options).map(
+      (option, index) => `${letters[index]}) ${option}`.slice(0, 72),
+    ),
+  ]
     .filter(Boolean)
-    .slice(0, 4)
-    .map(capitalizeWord)
-    .join(" ");
-  return `Quiz: ${words}`.slice(0, 48) || `Can you score ${questions}/${questions}?`;
+    .join("\n");
 }
 
 function quizAnswerBeats(scenes: SceneInput[]): string[] | undefined {
-  const letters = scenes
-    .map((scene) => (scene.exampleCard?.title || scene.overlayText || "").trim())
-    .filter((title) => /^[A-D]$/i.test(title))
-    .map((title) => title.toUpperCase());
-  const unique = [...new Set(letters)];
-  return unique.length >= 2 ? unique.slice(0, 3) : ["A", "B", "C"];
+  const answerScene = scenes.find((scene) =>
+    /^[A-D]$/i.test(
+      (scene.exampleCard?.title || scene.overlayText || "").trim(),
+    ),
+  );
+  if (answerScene?.exampleCard) {
+    const sheet = parseQuizSheet(answerScene.exampleCard);
+    const winning = sheet.options.find(
+      (option) => option.letter === sheet.answer,
+    );
+    const win = (winning?.text || "").replace(/\s+/g, " ").trim();
+    const beats = [sheet.answer || "B"];
+    if (win && win.length <= 18) {
+      beats.push(win);
+    } else if (win) {
+      beats.push("GOT IT");
+    }
+    if (beats.length > 0) {
+      return beats.slice(0, 3);
+    }
+  }
+  return ["A", "B", "C"];
+}
+
+function programmingQuizSpeech(_question?: string): string {
+  return "What is the output? Lock your guess. Comment A, B, C, or D.";
+}
+
+function pastedQuizHint(prompt: string, options: NormalizedScriptOptions): string {
+  const pasted = parsePastedQuiz(prompt);
+  if (!pasted || options.format !== "quiz") {
+    return "";
+  }
+  return `
+
+THE USER PASTED THIS EXACT QUIZ. Use it verbatim. Do not invent a different question, snippet, or options.
+${quizSheetBody(
+  pasted.question || "What is the output?",
+  pasted.options.map((option) => option.text),
+  pasted.code,
+)}
+Solve it. Scene 2 title is the correct letter only.`;
+}
+
+function pastedQuizTopic(sheet: {
+  question: string;
+  code?: string;
+}): string {
+  const blob = `${sheet.question}\n${sheet.code || ""}`;
+  if (/\b(python|def\s|print\s*\(|lambda|dict|append\()/i.test(blob)) {
+    return "python";
+  }
+  if (/\b(javascript|console\.log|const\s|=>)/i.test(blob)) {
+    return "javascript";
+  }
+  if (/\b(java|system\.out|public\s)/i.test(blob)) {
+    return "java";
+  }
+  return "code";
+}
+
+function pinPastedQuiz(
+  scenes: SceneInput[],
+  userPrompt: string | undefined,
+  holdMs: number,
+  targetDurationSec: TargetDurationSec,
+): SceneInput[] {
+  const pasted = parsePastedQuiz(userPrompt || "");
+  if (!pasted) {
+    return scenes;
+  }
+  return scenesFromQuizItem(
+    quizItemFromPasted(pasted),
+    userPrompt || "",
+    holdMs,
+    targetDurationSec,
+    makeQuizSheetTitle(pastedQuizTopic(pasted)),
+  );
+}
+
+function quizItemFromPasted(
+  sheet: NonNullable<ReturnType<typeof parsePastedQuiz>>,
+): QuizItem {
+  const parsed = sheet;
+  const solved = solvePastedQuiz(parsed);
+  return {
+    question: parsed.question || "What is the output?",
+    options: parsed.options.map((option) => option.text),
+    answer: solved.answer,
+    explain: solved.explain,
+    code: parsed.code,
+  };
+}
+
+function solvePastedQuiz(sheet: NonNullable<ReturnType<typeof parsePastedQuiz>>): {
+  answer: "A" | "B" | "C" | "D";
+  explain: string;
+} {
+  const ran = sheet.code ? tryRunSnippet(sheet.code) : null;
+  if (ran) {
+    const matched =
+      ran.kind === "error"
+        ? sheet.options.find((option) => /error|exception/i.test(option.text))
+        : matchQuizOption(sheet.options, ran.text);
+    if (matched && /^[A-D]$/.test(matched.letter)) {
+      return {
+        answer: matched.letter as "A" | "B" | "C" | "D",
+        explain: explainPastedQuiz(sheet, matched.text),
+      };
+    }
+  }
+  return heuristicPastedAnswer(sheet);
+}
+
+function matchQuizOption(
+  options: { letter: string; text: string }[],
+  raw: string,
+): { letter: string; text: string } | undefined {
+  const got = normalizeQuizValue(raw);
+  return (
+    options.find((option) => normalizeQuizValue(option.text) === got) ||
+    options.find((option) => {
+      const text = normalizeQuizValue(option.text);
+      return text.length > 0 && (got.includes(text) || text.includes(got));
+    })
+  );
+}
+
+function normalizeQuizValue(value: string): string {
+  return value
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+const UNSAFE_SNIPPET =
+  /\b(import|__|exec\s*\(|eval\s*\(|open\s*\(|subprocess|os\.|sys\.|pathlib|socket|requests|input\s*\(|from\s+\w+\s+import)\b/i;
+
+function tryRunSnippet(
+  code: string,
+): { kind: "out" | "error"; text: string } | null {
+  if (!code.trim() || UNSAFE_SNIPPET.test(code)) {
+    return null;
+  }
+  if (/\bconsole\.log\b/.test(code)) {
+    return runQuietProcess("node", ["-e", code]);
+  }
+  if (/\bprint\s*\(|^\s*\w+\s*=/.test(code)) {
+    return (
+      runQuietProcess("python3", ["-c", code]) ||
+      runQuietProcess("python", ["-c", code])
+    );
+  }
+  return null;
+}
+
+function runQuietProcess(
+  command: string,
+  args: string[],
+): { kind: "out" | "error"; text: string } | null {
+  try {
+    const result = spawnSync(command, args, {
+      encoding: "utf8",
+      timeout: 1500,
+      maxBuffer: 64 * 1024,
+      windowsHide: true,
+    });
+    if (result.error) {
+      return null;
+    }
+    const stdout = (result.stdout || "").trim();
+    const stderr = (result.stderr || "").trim();
+    if (result.status !== 0) {
+      return { kind: "error", text: stderr || stdout || "Error" };
+    }
+    return { kind: "out", text: stdout };
+  } catch {
+    return null;
+  }
+}
+
+function heuristicPastedAnswer(sheet: NonNullable<ReturnType<typeof parsePastedQuiz>>): {
+  answer: "A" | "B" | "C" | "D";
+  explain: string;
+} {
+  const code = sheet.code || "";
+  const listLiteral = code.match(/(\w+)\s*=\s*(\[[^\]]*\])/);
+  const alias = code.match(/^(\w+)\s*=\s*(\w+)\s*$/m);
+  const append = code.match(/(\w+)\.append\(([^)]+)\)/);
+  const printed = code.match(/print\((\w+)\)/);
+  if (
+    listLiteral &&
+    alias &&
+    append &&
+    printed &&
+    alias[2] === listLiteral[1] &&
+    append[1] === alias[1] &&
+    (printed[1] === listLiteral[1] || printed[1] === alias[1])
+  ) {
+    const original = normalizeQuizValue(listLiteral[2]);
+    const mutated = sheet.options.find(
+      (option) =>
+        /^\s*\[/.test(option.text) &&
+        normalizeQuizValue(option.text) !== original &&
+        !/error/i.test(option.text),
+    );
+    if (mutated && /^[A-D]$/.test(mutated.letter)) {
+      return {
+        answer: mutated.letter as "A" | "B" | "C" | "D",
+        explain: explainPastedQuiz(sheet, mutated.text),
+      };
+    }
+  }
+  const fallback =
+    sheet.options.find((option) => option.letter === "B") || sheet.options[0];
+  return {
+    answer: (fallback?.letter as "A" | "B" | "C" | "D") || "B",
+    explain: explainPastedQuiz(sheet, fallback?.text || "that output"),
+  };
+}
+
+function explainPastedQuiz(
+  sheet: { code?: string; answer?: string | null; options?: { letter: string; text: string }[] },
+  winningText: string,
+): string {
+  return quizCaptionExplanation({
+    heading: "Quiz",
+    question: "",
+    code: sheet.code,
+    options: sheet.options || [{ letter: "B", text: winningText }],
+    answer: sheet.answer || "B",
+  }).replace(/^The answer is [A-D]\.\s*/i, "");
+}
+
+function applyProgrammingQuizSpeech(scenes: SceneInput[]): SceneInput[] {
+  return scenes.map((scene, index) => {
+    if (!scene.exampleCard?.body) {
+      return scene;
+    }
+    const sheet = parseQuizSheet(scene.exampleCard);
+    const isAnswer =
+      /^[A-D]$/i.test(scene.exampleCard.title || "") || index > 0;
+    if (isAnswer) {
+      const letter =
+        scene.exampleCard.title?.toUpperCase().match(/^[A-D]$/)?.[0] ||
+        scene.text.match(/answer is ([A-D])/i)?.[1]?.toUpperCase() ||
+        "B";
+      return { ...scene, text: quizAnswerSpeech(letter) };
+    }
+    if (!sheet.code) {
+      return scene;
+    }
+    return { ...scene, text: programmingQuizSpeech(sheet.question) };
+  });
+}
+
+function quizAnswerSpeech(letter: string): string {
+  return `The answer is ${letter}. Check the captions for the explanation. Follow for more.`;
 }
 
 function applyQuizHolds(scenes: SceneInput[], holdMs: number): SceneInput[] {
@@ -946,10 +1279,14 @@ function applyQuizHolds(scenes: SceneInput[], holdMs: number): SceneInput[] {
       return scene;
     }
     const title = scene.exampleCard?.title || "";
+    const isAnswer =
+      /^[A-D]$/i.test(title) ||
+      /^[A-D]$/i.test(scene.overlayText || "") ||
+      (index > 0 && scene.exampleCard?.kind === "quiz");
     const isQuestion =
-      scene.exampleCard?.kind === "quiz" && /^Q\d+/i.test(title);
-    const isQuestionPair = index % 2 === 0 && Boolean(scenes[index + 1]);
-    if (isQuestion || isQuestionPair) {
+      (scene.exampleCard?.kind === "quiz" && !isAnswer) ||
+      (index === 0 && Boolean(scenes[index + 1]));
+    if (isQuestion) {
       return { ...scene, holdMs };
     }
     return scene;
@@ -962,19 +1299,33 @@ function fillMissingQuizCards(
   userPrompt?: string,
 ): SceneInput[] {
   const topic = cleanTopic(userPrompt || hookText || scenes[0]?.text || "this");
+  const heading = makeQuizSheetTitle(topic);
   return scenes.map((scene, index) => {
     if (scene.exampleCard?.kind === "quiz" && scene.exampleCard.body) {
       return scene;
     }
-    const n = Math.floor(index / 2) + 1;
-    if (index % 2 === 0) {
+    const question =
+      scene.text.replace(/\s+/g, " ").trim() || `What about ${topic}?`;
+    const fallback = isCodeTopic(userPrompt || "", topic)
+      ? localQuizBank(topic, userPrompt || topic)[0]
+      : undefined;
+    const body = quizSheetBody(
+      fallback?.question || question,
+      fallback?.options || [
+        `A common myth about ${topic}`,
+        `The useful truth about ${topic}`,
+        "It only works for experts",
+      ],
+      fallback?.code,
+    );
+    if (index === 0) {
       return {
         ...scene,
-        overlayText: scene.overlayText || `Q${n}`,
+        overlayText: undefined,
         exampleCard: {
           kind: "quiz",
-          title: `Q${n}`,
-          body: `A) A common myth about ${topic}\nB) The useful truth about ${topic}\nC) It only works for experts`,
+          title: heading,
+          body,
         },
       };
     }
@@ -983,8 +1334,8 @@ function fillMissingQuizCards(
       overlayText: scene.overlayText || "B",
       exampleCard: {
         kind: "quiz",
-        title: "B",
-        body: `The useful truth about ${topic}`,
+        title: heading,
+        body,
       },
     };
   });
@@ -992,120 +1343,66 @@ function fillMissingQuizCards(
 
 type QuizItem = {
   question: string;
-  options: [string, string, string];
-  answer: "A" | "B" | "C";
+  options: string[];
+  answer: "A" | "B" | "C" | "D";
   explain: string;
+  code?: string;
 };
 
 function buildLocalQuizScenes(
   prompt: string,
   topic: string,
-  questionCount: number,
+  _questionCount: number,
   holdMs: number,
+  targetDurationSec: TargetDurationSec = 30,
 ): SceneInput[] {
-  const bank = localQuizBank(topic, prompt);
-  const scenes: SceneInput[] = [];
-  for (let i = 0; i < questionCount; i += 1) {
-    const item = bank[i % bank.length];
-    const n = i + 1;
-    const letters = ["A", "B", "C"] as const;
-    const spokenOptions = item.options
-      .map((option, index) => `${letters[index]}, ${option}`)
-      .join(". ");
-    scenes.push({
-      text: `Question ${n}. ${item.question} ${spokenOptions}. Pause and pick one.`,
-      searchTerms: searchTermsFor(item.question, prompt),
-      overlayText: `Q${n}`,
+  const pasted = parsePastedQuiz(prompt);
+  const item = pasted ? quizItemFromPasted(pasted) : localQuizBank(topic, prompt)[0];
+  const heading = makeQuizSheetTitle(pasted ? pastedQuizTopic(pasted) : topic);
+  return scenesFromQuizItem(item, prompt, holdMs, targetDurationSec, heading);
+}
+
+function scenesFromQuizItem(
+  item: QuizItem,
+  prompt: string,
+  holdMs: number,
+  _targetDurationSec: TargetDurationSec,
+  heading: string,
+): SceneInput[] {
+  const choices = padQuizOptions(item.options);
+  const sheetBody = quizSheetBody(item.question, choices, item.code);
+  const questionSpeech = item.code
+    ? programmingQuizSpeech(item.question)
+    : `${item.question} Lock your guess. Comment A, B, C, or D.`;
+  const searchSeed = item.code ? "python code laptop keyboard" : prompt;
+  return [
+    {
+      text: questionSpeech,
+      searchTerms: searchTermsFor(item.question, searchSeed),
       holdMs,
       exampleCard: {
         kind: "quiz",
-        title: `Q${n}`,
-        body: item.options
-          .map((option, index) => `${letters[index]}) ${option}`)
-          .join("\n"),
+        title: heading,
+        body: sheetBody,
       },
-    });
-    const answerText =
-      item.options[{"A": 0, "B": 1, "C": 2}[item.answer]];
-    scenes.push({
-      text: `The answer is ${item.answer}. ${item.explain}`,
-      searchTerms: searchTermsFor(item.explain, prompt),
+    },
+    {
+      text: quizAnswerSpeech(item.answer),
+      searchTerms: searchTermsFor(item.explain, searchSeed),
       overlayText: item.answer,
       exampleCard: {
         kind: "quiz",
-        title: item.answer,
-        body: answerText,
+        title: heading,
+        body: sheetBody,
       },
-    });
-  }
-  return scenes;
+    },
+  ];
 }
 
 function localQuizBank(topic: string, prompt: string): QuizItem[] {
   const subject = topic || "this topic";
   if (isCodeTopic(prompt, topic)) {
-    return [
-      {
-        question: `What did ${subject} mainly replace in everyday code?`,
-        options: [
-          "Hash maps",
-          "Verbose anonymous classes",
-          "Database tables",
-        ],
-        answer: "B",
-        explain: `${subject} replaced bulky anonymous classes with a short function.`,
-      },
-      {
-        question: `Where does ${subject} show up most clearly?`,
-        options: [
-          "One tiny callback",
-          "A giant config file",
-          "CSS only",
-        ],
-        answer: "A",
-        explain: `You see ${subject} first in a tiny callback, not a huge rewrite.`,
-      },
-      {
-        question: `What is the fastest way to learn ${subject}?`,
-        options: [
-          "Memorize every rule",
-          "Skip the types",
-          "Rewrite one real example",
-        ],
-        answer: "C",
-        explain: `Rewrite one real example of ${subject} and the pattern sticks.`,
-      },
-      {
-        question: `Which statement about ${subject} is true?`,
-        options: [
-          "It is only for experts",
-          "It is a shorter way to pass behavior",
-          "It deletes loops forever",
-        ],
-        answer: "B",
-        explain: `${subject} is just a shorter way to pass behavior into a method.`,
-      },
-      {
-        question: `What should you avoid with ${subject}?`,
-        options: [
-          "Naming the action",
-          "Keeping it on one line",
-          "Hiding ten steps inside it",
-        ],
-        answer: "C",
-        explain: `Do not hide ten steps inside ${subject}. Keep the action obvious.`,
-      },
-      {
-        question: `When is ${subject} the wrong tool?`,
-        options: [
-          "A one-line transform",
-          "A long business workflow",
-          "A simple filter",
-        ],
-        answer: "B",
-        explain: `A long business workflow is clearer as named methods, not ${subject}.`,
-      },
-    ];
+    return localCodeOutputBank(prompt, topic);
   }
   return [
     {
@@ -1206,16 +1503,139 @@ function makeOverlayText(text: string, _index: number): string | undefined {
 }
 
 const CODE_TOPIC_PATTERN =
-  /\b(java|lambda|lambdas|python|javascript|typescript|react|kotlin|golang|rust|sql|docker|kubernetes|api|function|functions|class|coding|code|programmer|programming|streams)\b/i;
+  /\b(java|lambda|lambdas|python|javascript|typescript|js|node|react|kotlin|golang|rust|sql|docker|kubernetes|api|function|functions|class|coding|code|programmer|programming|program|streams|snippet|leetcode|interview)\b/i;
 
 function isCodeTopic(...texts: string[]): boolean {
   return texts.some((text) => CODE_TOPIC_PATTERN.test(text));
 }
 
+function localCodeOutputBank(prompt: string, topic: string): QuizItem[] {
+  const corpus = `${prompt} ${topic}`.toLowerCase();
+  if (/\b(python|py)\b/.test(corpus)) {
+    return [
+      {
+        question: "What is the output?",
+        code: 'nums = [1, 2, 3]\nprint([n * 2 for n in nums][0])',
+        options: ["2", "[2, 4, 6]", "1"],
+        answer: "A",
+        explain: "The list comprehension doubles each number, then [0] takes the first value, 2.",
+      },
+      {
+        question: "What is the output?",
+        code: 'print("hi" * 2)',
+        options: ["hihi", "hi2", "Error"],
+        answer: "A",
+        explain: "Python multiplies a string by repeating it, so hi times 2 is hihi.",
+      },
+      {
+        question: "What is the output?",
+        code: "print(bool([]))",
+        options: ["False", "True", "[]"],
+        answer: "A",
+        explain: "An empty list is falsy in Python, so bool of empty list prints False.",
+      },
+    ];
+  }
+  if (/\b(javascript|typescript|js|node|react)\b/.test(corpus)) {
+    return [
+      {
+        question: "What is the output?",
+        code: "console.log(typeof null)",
+        options: ["object", "null", "undefined"],
+        answer: "A",
+        explain: "typeof null is a famous JavaScript quirk. It prints object, not null.",
+      },
+      {
+        question: "What is the output?",
+        code: "console.log([1,2,3].map(n => n * 2)[0])",
+        options: ["2", "[2, 4, 6]", "1"],
+        answer: "A",
+        explain: "map doubles each item, then [0] reads the first value, which is 2.",
+      },
+      {
+        question: "What is the output?",
+        code: "console.log(0 == '0')",
+        options: ["true", "false", "Error"],
+        answer: "A",
+        explain: "Loose equality coerces the string, so 0 equals '0' is true.",
+      },
+    ];
+  }
+  if (/\b(sql)\b/.test(corpus)) {
+    return [
+      {
+        question: "What does this return?",
+        code: "SELECT COUNT(*) FROM t WHERE 1 = 0;",
+        options: ["0", "NULL", "Error"],
+        answer: "A",
+        explain: "COUNT of no matching rows is 0, not NULL.",
+      },
+      {
+        question: "What is the result?",
+        code: "SELECT 1 + NULL;",
+        options: ["NULL", "1", "0"],
+        answer: "A",
+        explain: "Any math with NULL stays NULL in SQL.",
+      },
+      {
+        question: "What does this return?",
+        code: "SELECT 'A' || NULL;",
+        options: ["NULL", "A", "ANULL"],
+        answer: "A",
+        explain: "Concatenating NULL usually yields NULL, not A.",
+      },
+    ];
+  }
+  return [
+    {
+      question: "What is the output?",
+      code: 'Predicate<String> p = s -> s.isEmpty();\nSystem.out.println(p.test(""));',
+      options: ["true", "false", "\"\""],
+      answer: "A",
+      explain: "An empty string makes isEmpty true, so the lambda prints true.",
+    },
+    {
+      question: "What is the output?",
+      code: "System.out.println(\n  List.of(1,2,3).stream()\n    .filter(n -> n > 1)\n    .count());",
+      options: ["2", "3", "1"],
+      answer: "A",
+      explain: "filter keeps 2 and 3, so count is 2.",
+    },
+    {
+      question: "What is the output?",
+      code: 'List.of("a","b").forEach(System.out::print);',
+      options: ["ab", "a b", "[a, b]"],
+      answer: "A",
+      explain: "forEach with print writes each item with no space, so ab.",
+    },
+    {
+      question: "What is the output?",
+      code: "int x = 10;\nIntUnaryOperator f = n -> n + 1;\nSystem.out.println(f.applyAsInt(x));",
+      options: ["11", "10", "12"],
+      answer: "A",
+      explain: "The lambda adds one to 10, so it prints 11. x itself is unchanged.",
+    },
+    {
+      question: "What is the output?",
+      code: 'Function<String,Integer> f = String::length;\nSystem.out.println(f.apply("java"));',
+      options: ["4", "java", "5"],
+      answer: "A",
+      explain: "String length of java is 4, so the method reference prints 4.",
+    },
+    {
+      question: "What is the output?",
+      code: "System.out.println(\n  Stream.of(1,2,3).findFirst().get());",
+      options: ["1", "Optional[1]", "3"],
+      answer: "A",
+      explain: "findFirst is 1, and get unwraps the Optional, so it prints 1.",
+    },
+  ];
+}
+
 function clampCardBody(body: string, kind?: string): string {
-  const maxLines = kind === "quiz" ? 8 : 6;
-  const maxChars = kind === "quiz" ? 56 : 42;
-  const maxTotal = kind === "quiz" ? 400 : 280;
+  const maxLines = kind === "quiz" ? 12 : 6;
+  const maxChars = kind === "quiz" ? 72 : 42;
+  const maxTotal = kind === "quiz" ? 640 : 280;
   return body
     .replace(/\t/g, "  ")
     .split(/\r?\n/)
@@ -1227,7 +1647,11 @@ function clampCardBody(body: string, kind?: string): string {
 }
 
 function looksLikeQuizCard(title: string | undefined, body: string): boolean {
-  if (/^Q\d+$/i.test(title || "") || /^[A-D]$/i.test(title || "")) {
+  if (
+    /^Q\d+$/i.test(title || "") ||
+    /^[A-D]$/i.test(title || "") ||
+    /quiz$/i.test(title || "")
+  ) {
     return true;
   }
   return /(?:^|\n)\s*[A-D][).:\-]\s+\S+/i.test(body);
@@ -1489,13 +1913,37 @@ function searchTermsFor(text: string, prompt: string): string[] {
   return picked.slice(0, 3);
 }
 
-function inferMood(prompt: string): MusicMoodEnum {
+function inferMood(
+  prompt: string,
+  format: VideoFormat = "story",
+): MusicMoodEnum {
   for (const [pattern, mood] of MOOD_RULES) {
     if (pattern.test(prompt)) {
       return mood;
     }
   }
-  return MusicMoodEnum.chill;
+  return format === "quiz" ? MusicMoodEnum.funny : MusicMoodEnum.chill;
+}
+
+function resolveMusic(
+  prompt: string,
+  format: VideoFormat,
+  llmValue: unknown,
+): MusicMoodEnum {
+  for (const [pattern, mood] of MOOD_RULES) {
+    if (pattern.test(prompt)) {
+      return mood;
+    }
+  }
+  const picked = pickEnum(
+    llmValue,
+    MUSIC_VALUES,
+    format === "quiz" ? MusicMoodEnum.funny : MusicMoodEnum.chill,
+  );
+  if (format === "quiz" && picked === MusicMoodEnum.chill) {
+    return MusicMoodEnum.funny;
+  }
+  return picked;
 }
 
 function inferVoice(prompt: string): VoiceEnum {
@@ -1524,14 +1972,17 @@ function inferOrientation(prompt: string): OrientationEnum {
   return OrientationEnum.portrait;
 }
 
-function inferMusicVolume(prompt: string): MusicVolumeEnum {
+function inferMusicVolume(
+  prompt: string,
+  format: VideoFormat = "story",
+): MusicVolumeEnum {
   if (/\b(no music|without music|muted|silent background)\b/i.test(prompt)) {
     return MusicVolumeEnum.muted;
   }
   if (/\b(loud music|music loud|turn up the music)\b/i.test(prompt)) {
     return MusicVolumeEnum.high;
   }
-  return MusicVolumeEnum.low;
+  return format === "quiz" ? MusicVolumeEnum.medium : MusicVolumeEnum.low;
 }
 
 function inferCaptionColor(prompt: string): string {

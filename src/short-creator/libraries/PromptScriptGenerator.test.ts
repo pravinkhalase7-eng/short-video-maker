@@ -11,7 +11,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -136,6 +136,15 @@ test("music ducks under speech and rises on the end card", () => {
   expect(ducked).toBeCloseTo(0.076, 3);
   expect(risen).toBe(0.2);
   expect(muted).toBe(0);
+  expect(
+    getDuckedMusicVolume({
+      frame: 40,
+      baseVolume: 0.2,
+      muted: false,
+      endCardFrom,
+      duckRanges: [{ from: 30, durationInFrames: 20 }],
+    }),
+  ).toBeCloseTo(0.076 * 0.18, 3);
 });
 
 test("pins the hook topic as the first Pexels search term and drops negated words", () => {
@@ -365,21 +374,133 @@ test("60 second stories use more scenes than the 30 second default", () => {
   expect(longer.scenes.length).toBeGreaterThan(short.scenes.length);
 });
 
-test("quiz format writes question and answer scenes with think pauses", () => {
+test("quiz format writes one question worksheet then the answer", () => {
   const result = generateLocalScript("how banana helps", {
     targetDurationSec: 30,
     format: "quiz",
   });
 
   expect(result.config.format).toBe("quiz");
-  expect(result.scenes).toHaveLength(4);
+  expect(result.scenes).toHaveLength(2);
   expect(result.scenes[0].exampleCard?.kind).toBe("quiz");
-  expect(result.scenes[0].exampleCard?.title).toBe("Q1");
+  expect(result.scenes[0].exampleCard?.title).toMatch(/Quiz$/i);
   expect(result.scenes[0].exampleCard?.body).toMatch(/A\)/);
-  expect(result.scenes[0].holdMs).toBe(3000);
-  expect(result.scenes[1].exampleCard?.title).toMatch(/^[A-C]$/);
+  expect(result.scenes[0].exampleCard?.body).toMatch(/D\)/);
+  expect(result.scenes[0].exampleCard?.body).toMatch(/\?/);
+  expect(result.scenes[0].holdMs).toBe(11000);
+  expect(result.scenes[1].exampleCard?.title).toMatch(/Quiz$/i);
+  expect(result.scenes[1].overlayText).toMatch(/^[A-D]$/);
+  expect(result.scenes[1].exampleCard?.body).toMatch(/A\)/);
   expect(result.scenes[0].searchTerms[0]).toBe("banana");
-  expect(result.config.endCardText).toBe("How many did you get right?");
+  expect(result.config.hookText).toBeUndefined();
+  expect(result.config.hookDurationMs).toBe(0);
+  expect(result.config.endCardText).toBe("Did you get it right?");
+  expect(result.config.endCardCta).toBe("Follow for more");
+  expect(result.config.music).toBe(MusicMoodEnum.funny);
+  expect(result.config.musicVolume).toBe(MusicVolumeEnum.medium);
+});
+
+test("code quizzes ask for program output, not theory", () => {
+  const result = generateLocalScript("Java 8 lambdas", {
+    targetDurationSec: 30,
+    format: "quiz",
+  });
+  const body = result.scenes[0].exampleCard?.body || "";
+  expect(body).toMatch(/Predicate|System\.out|->/);
+  expect(body).toMatch(/A\)/);
+  expect(result.scenes[0].text.toLowerCase()).toMatch(/comment/);
+  expect(result.scenes[0].text.toLowerCase()).toMatch(/what is the output/);
+  expect(result.scenes[0].text.toLowerCase()).not.toMatch(/editor|snippet/);
+  expect(result.scenes[0].text).not.toMatch(/A:\s*1|A\)\s*1/i);
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/check the captions/);
+  expect(result.scenes[1].text.toLowerCase()).not.toMatch(/hint:/);
+  const sheet = parseQuizSheet({
+    title: result.scenes[0].exampleCard?.title,
+    body,
+  });
+  expect(sheet.question.toLowerCase()).toMatch(/output/);
+  expect(sheet.code).toBeTruthy();
+  expect(sheet.options).toHaveLength(4);
+  expect(sheet.options.map((option) => option.letter).join("")).toBe("ABCD");
+});
+
+const PASTED_LIST_QUIZ = `1. What is the output?
+x = [1, 2, 3]
+y = x
+y.append(4)
+print(x)
+
+A) [1, 2, 3]
+B) [1, 2, 3, 4]
+C) [4, 1, 2, 3]
+D) Error`;
+
+test("pasted programming quizzes keep the snippet and solve it", () => {
+  const sheet = parsePastedQuiz(PASTED_LIST_QUIZ);
+  expect(sheet?.question).toMatch(/output/i);
+  expect(sheet?.code).toContain("y.append(4)");
+  expect(sheet?.options.map((option) => option.letter).join("")).toBe("ABCD");
+
+  const result = generateLocalScript(PASTED_LIST_QUIZ, {
+    targetDurationSec: 30,
+    format: "story",
+  });
+  expect(result.config.format).toBe("quiz");
+  expect(result.scenes[0].exampleCard?.body).toContain("y.append(4)");
+  expect(result.scenes[0].exampleCard?.body).toContain("B) [1, 2, 3, 4]");
+  expect(result.scenes[0].text).toMatch(/Lock your guess/);
+  expect(result.scenes[0].text).toMatch(/Comment A, B, C, or D/);
+  expect(result.scenes[0].text).not.toContain("append");
+  expect(result.scenes[1].exampleCard?.title).toMatch(/Quiz$/i);
+  expect(result.scenes[1].overlayText).toBe("B");
+  expect(result.scenes[1].text).toMatch(/answer is B/i);
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/check the captions/);
+  expect(result.scenes[1].text.toLowerCase()).not.toMatch(/hint:/);
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/follow for more/);
+  expect(result.config.music).toBe(MusicMoodEnum.funny);
+});
+
+test("parseGeneratedShort pins a pasted quiz instead of the model worksheet", () => {
+  const result = parseGeneratedShort(
+    JSON.stringify({
+      scenes: [
+        {
+          text: "Guess this.",
+          searchTerms: ["code"],
+          exampleCard: {
+            kind: "quiz",
+            title: "Invented Quiz",
+            body: "What is 1+1?\nA) 1\nB) 2\nC) 3\nD) 4",
+          },
+        },
+        {
+          text: "The answer is B. Two.",
+          overlayText: "B",
+          exampleCard: {
+            kind: "quiz",
+            title: "B",
+            body: "What is 1+1?\nA) 1\nB) 2\nC) 3\nD) 4",
+          },
+        },
+      ],
+    }),
+    PASTED_LIST_QUIZ,
+    { targetDurationSec: 30, format: "quiz" },
+  );
+  expect(result.scenes[0].exampleCard?.body).toContain("y.append(4)");
+  expect(result.scenes[1].exampleCard?.title).toMatch(/Quiz$/i);
+  expect(result.scenes[1].overlayText).toBe("B");
+});
+
+test("longer quiz videos still use a single question", () => {
+  const result = generateLocalScript("USA geography", {
+    targetDurationSec: 60,
+    format: "quiz",
+  });
+
+  expect(result.scenes).toHaveLength(2);
+  expect(result.scenes[0].holdMs).toBe(13000);
+  expect(result.scenes[1].text.toLowerCase()).toContain("answer");
 });
 
 test("parseGeneratedShort keeps more than four scenes for a 60 second target", () => {
@@ -430,12 +551,113 @@ test("captionsFromSpeech maps spoken words onto audio duration", () => {
   const captions = captionsFromSpeech("One banana helps", 2);
   expect(captions).toHaveLength(3);
   expect(captions[0].text).toBe("One");
+  expect(captions[0].startMs).toBeGreaterThan(0);
   expect(captions[2].endMs).toBe(2000);
+  expect(captions[1].endMs - captions[1].startMs).toBeGreaterThan(
+    captions[0].endMs - captions[0].startMs,
+  );
+});
+
+test("captionsFromSpeech follows the detected speech window", () => {
+  const captions = captionsFromSpeech("One banana helps", 2, {
+    startSec: 0.2,
+    endSec: 1.6,
+  });
+  expect(captions[0].startMs).toBe(200);
+  expect(captions[2].endMs).toBe(1600);
+});
+
+test("quiz videos skip Pexels and use a hardcoded worksheet", () => {
+  expect(usesHardcodedWorksheet({ format: "quiz" })).toBe(true);
+  expect(usesHardcodedWorksheet({ format: "story" })).toBe(false);
+  expect(
+    usesHardcodedWorksheet({ format: "story" }, [
+      { exampleCard: { kind: "quiz" } },
+    ]),
+  ).toBe(true);
 });
 
 test("quiz cards are detected for countdown and answer freeze", () => {
+  expect(isQuizQuestionCard({ kind: "quiz", title: "USA Quiz" })).toBe(true);
   expect(isQuizQuestionCard({ kind: "quiz", title: "Q1" })).toBe(true);
   expect(isQuizAnswerCard({ kind: "quiz", title: "B" })).toBe(true);
+  expect(isQuizQuestionCard({ kind: "quiz", title: "B" })).toBe(false);
+  expect(
+    isQuizAnswerCard({ kind: "quiz", title: "Python Quiz" }, "B"),
+  ).toBe(true);
+  expect(
+    isQuizQuestionCard({ kind: "quiz", title: "Python Quiz" }, "B"),
+  ).toBe(false);
+  expect(
+    quizSeriesBadge({
+      title: "B",
+      body: "What is the output?\nprint([i for i in range(5) if i % 2])",
+    }),
+  ).toBe("PYTHON");
+  const sheet = parseQuizSheet({
+    title: "USA Quiz",
+    body: "Which U.S. state has the most people?\nA) Texas\nB) California\nC) Florida",
+  });
+  expect(sheet.heading).toBe("USA Quiz");
+  expect(sheet.question).toMatch(/most people/);
+  expect(sheet.options).toHaveLength(3);
+  expect(sheet.options[1]).toEqual({ letter: "B", text: "California" });
+  const codeSheet = parseQuizSheet({
+    title: "Python OOP Quiz",
+    body: "What is the output?\nclass A: x = 1\nclass B(A): pass\nA.x = 2\nprint(B.x)\nA) 1\nB) 2\nC) AttributeError\nD) None",
+  });
+  expect(codeSheet.code).toContain("A.x = 2");
+  expect(codeSheet.code).toContain("print(B.x)");
+  expect(codeSheet.options.map((option) => option.letter).join("")).toBe("ABCD");
+  expect(codeSheet.options[0]).toEqual({ letter: "A", text: "1" });
+  const mutableSheet = parseQuizSheet({
+    title: "Python Quiz",
+    body: "What is the output?\ndef func(a=[]):\n    a.append(1)\n    return a\nprint(func())\nprint(func())\nA) [1], [1]\nB) [1], [1, 1]\nC) [1, 1], [1, 1]\nD) Error",
+  });
+  expect(mutableSheet.question).toBe("What is the output?");
+  expect(mutableSheet.code).toContain("return a");
+  expect(mutableSheet.question.toLowerCase()).not.toContain("return");
+  const mutableScript = generateLocalScript(
+    `What is the output?
+def func(a=[]):
+    a.append(1)
+    return a
+print(func())
+print(func())
+A) [1], [1]
+B) [1], [1, 1]
+C) [1, 1], [1, 1]
+D) Error`,
+    { targetDurationSec: 30, format: "quiz" },
+  );
+  expect(mutableScript.scenes[0].text).toBe(
+    "What is the output? Lock your guess. Comment A, B, C, or D.",
+  );
+  expect(mutableScript.scenes[0].text.toLowerCase()).not.toContain("return a");
+  expect(
+    quizSeriesBadge({
+      title: "Python OOP Quiz",
+      body: codeSheet.code,
+    }),
+  ).toBe("PYTHON");
+  const reveal = quizOptionReveal({ fps: 30, delayFrames: 0 });
+  expect(reveal.from).toBeGreaterThan(0);
+  expect(reveal.step).toBeGreaterThanOrEqual(18);
+  expect(quizCardTitle({ title: "Python Quiz" })).toBe("Python Quiz");
+  expect(quizCardTitle({ title: "B" })).toBe("");
+  const countdown = quizCountdownTiming({
+    fps: 30,
+    optionFrom: reveal.from,
+    optionStep: reveal.step,
+    optionCount: 4,
+    sceneFrames: 450,
+  });
+  expect(countdown.from).toBe(360);
+  expect(countdown.guessFrom).toBeLessThan(countdown.from);
+  expect(countdown.guessDuration).toBeGreaterThanOrEqual(240);
+  expect(countdown.tickDuration).toBe(0);
+  expect(countdown.step).toBe(30);
+  expect(countdown.durationInFrames).toBe(90);
   expect(
     sceneClips({
       video: "a.mp4",
@@ -446,3 +668,4 @@ test("quiz cards are detected for countdown and answer freeze", () => {
     }),
   ).toHaveLength(2);
 });
+

@@ -60,17 +60,19 @@ export const exampleCardInput = z.object({
     .string()
     .max(24)
     .optional()
-    .describe("Short card label such as BEFORE, AFTER, or 230%"),
+    .describe("Short card label such as BEFORE, AFTER, 230%, or USA Quiz"),
   body: z
     .string()
     .min(1)
-    .max(400)
-    .describe("Code or a 2-6 word fact shown on the example card"),
+    .max(640)
+    .describe(
+      "Code, a 2-6 word fact, or a quiz: question, optional snippet, then A/B/C outputs",
+    ),
   kind: z
     .enum(["code", "fact", "quiz"])
     .optional()
     .describe(
-      "code renders as an editor window, fact as a statistic card, quiz as A/B/C options or an answer reveal",
+      "code renders as an editor window, fact as a statistic card, quiz as a one-question worksheet then an answer highlight",
     ),
 });
 
@@ -90,15 +92,15 @@ export const sceneInput = z.object({
   exampleCard: exampleCardInput
     .optional()
     .describe(
-      "Hero on-screen card. Use real short code for programming topics, a number plus a tiny label for facts, or A/B/C options for quiz scenes.",
+      "Hero on-screen card. Use real short code for programming topics, a number plus a tiny label for facts, or a one-question quiz sheet.",
     ),
   holdMs: z
     .number()
     .min(0)
-    .max(8000)
+    .max(15000)
     .optional()
     .describe(
-      "Extra hold after this scene's speech, in milliseconds. Use ~3000 on quiz question scenes so viewers can answer.",
+      "Extra hold after this scene's speech, in milliseconds. Use ~9000 on the quiz question so the 5s clock and 3-2-1 fit.",
     ),
 });
 export type SceneInput = z.infer<typeof sceneInput>;
@@ -205,7 +207,9 @@ export const renderConfig = z.object({
     .describe("Finished video length to aim for: 30, 60, 90, or 120 seconds"),
   format: videoFormatSchema
     .optional()
-    .describe("story is a narrated short; quiz asks questions then reveals answers"),
+    .describe(
+      "story is a narrated short; quiz is one multiple-choice question, a think pause, then the answer",
+    ),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 
@@ -236,6 +240,11 @@ export type CaptionPage = {
 export const createShortInput = z.object({
   scenes: z.array(sceneInput).describe("Each scene to be created"),
   config: renderConfig.describe("Configuration for rendering the video"),
+  prompt: z
+    .string()
+    .max(4000)
+    .optional()
+    .describe("The original user prompt used to generate this video"),
 });
 export type CreateShortInput = z.infer<typeof createShortInput>;
 
@@ -244,7 +253,7 @@ export const generateShortInput = z.object({
     .string()
     .trim()
     .min(8, "Prompt must be at least 8 characters")
-    .max(2000, "Prompt is too long")
+    .max(4000, "Prompt is too long")
     .describe("A description of the short video the user wants to make"),
   targetDurationSec: targetDurationSecSchema.default(30),
   format: videoFormatSchema.default("story"),

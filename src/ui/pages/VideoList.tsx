@@ -22,6 +22,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 interface VideoItem {
   id: string;
   status: string;
+  title?: string;
+  prompt?: string;
 }
 
 const VideoList: React.FC = () => {
@@ -119,6 +121,8 @@ const VideoList: React.FC = () => {
             {videos.map((video, index) => {
               const videoId = video?.id || '';
               const videoStatus = video?.status || 'unknown';
+              const heading = video.title?.trim() || `Video ${videoId.substring(0, 8)}...`;
+              const promptPreview = video.prompt?.trim();
               
               return (
                 <div key={videoId}>
@@ -134,19 +138,37 @@ const VideoList: React.FC = () => {
                     }}
                   >
                     <ListItemText
-                      primary={`Video ${videoId.substring(0, 8)}...`}
+                      primary={heading}
                       secondary={
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          color={
-                            videoStatus === 'ready' ? 'success.main' : 
-                            videoStatus === 'processing' ? 'info.main' : 
-                            videoStatus === 'failed' ? 'error.main' : 'text.secondary'
-                          }
-                        >
-                          {capitalizeFirstLetter(videoStatus)}
-                        </Typography>
+                        <>
+                          {promptPreview ? (
+                            <Typography
+                              component="span"
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                mb: 0.5,
+                              }}
+                            >
+                              {promptPreview}
+                            </Typography>
+                          ) : null}
+                          <Typography
+                            component="span"
+                            variant="body2"
+                            color={
+                              videoStatus === 'ready' ? 'success.main' : 
+                              videoStatus === 'processing' ? 'info.main' : 
+                              videoStatus === 'failed' ? 'error.main' : 'text.secondary'
+                            }
+                          >
+                            {capitalizeFirstLetter(videoStatus)}
+                          </Typography>
+                        </>
                       }
                     />
                     <ListItemSecondaryAction>

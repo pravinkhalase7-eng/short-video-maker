@@ -49,7 +49,7 @@ export const SceneCaptions: React.FC<{
       ? { top: isPortrait ? 160 : 80 }
       : position === "center"
         ? { top: "50%", transform: "translateY(-50%)" }
-        : { bottom: isPortrait ? 90 : 70 };
+        : { bottom: isPortrait ? (quiet ? 200 : 160) : 90 };
 
   const fontSize = quiet
     ? isPortrait

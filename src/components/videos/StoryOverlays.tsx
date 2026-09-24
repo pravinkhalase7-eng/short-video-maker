@@ -26,7 +26,8 @@ export const StoryOverlaySequences: React.FC<{
     fps,
   });
 
-  const hookText = config.hookText?.trim();
+  const hookText =
+    config.format === "quiz" ? "" : config.hookText?.trim();
   const endCardText = config.endCardText?.trim();
   const endCardCta = config.endCardCta?.trim();
   const endCardBeats = (config.endCardBeats || [])
