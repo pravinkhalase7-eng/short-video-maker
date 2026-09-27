@@ -3,7 +3,7 @@ import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
 import { loadFont as loadOutfit } from "@remotion/google-fonts/Outfit";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
-import { looksLikeCode, parseQuizSheet, quizSeriesBadge } from "../utils";
+import { looksLikeCode, parseQuizSheet, quizSeriesHeadline } from "../utils";
 
 const { fontFamily } = loadFont();
 const { fontFamily: anton } = loadAnton("normal", {
@@ -15,8 +15,8 @@ const { fontFamily: outfit } = loadOutfit("normal", {
   subsets: ["latin"],
 });
 
-const CODE_KEYWORDS =
-  /\b(public|private|protected|static|void|new|return|class|function|const|let|var|if|else|elif|def|print|pass|import|from|True|False|None|null|true|false|int|string|String|list|self|this|for|while|in|not|and|or|stream|filter|forEach|map|toList|Action|run)\b/g;
+const CODE_TOKEN =
+  /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|#.*$|\b\d+(?:\.\d+)?\b|\b(?:public|private|protected|static|void|new|return|class|function|const|let|var|if|else|elif|def|print|pass|import|from|True|False|None|null|true|false|int|string|String|list|self|this|for|while|in|not|and|or|stream|filter|forEach|map|toList|Action|run)\b)/g;
 
 type Card = {
   title?: string;
@@ -90,8 +90,8 @@ export const ExampleCardOverlay: React.FC<{
       style={{
         justifyContent: isQuiz ? "flex-start" : "center",
         alignItems: "center",
-        paddingTop: isPortrait ? (isQuiz ? 108 : 80) : 40,
-        paddingBottom: isPortrait ? (isQuiz ? 430 : 280) : 160,
+        paddingTop: isPortrait ? (isQuiz ? 44 : 80) : 40,
+        paddingBottom: isPortrait ? (isQuiz ? 380 : 280) : 160,
         paddingLeft: isPortrait ? 28 : 80,
         paddingRight: isPortrait ? 28 : 80,
         pointerEvents: "none",
@@ -267,10 +267,10 @@ const FactCard: React.FC<{
 };
 
 const OPTION_COLORS: Record<string, string> = {
-  A: "#FFD166",
-  B: "#4CC9F0",
-  C: "#F72585",
-  D: "#7CFFB2",
+  A: "#5EC8F0",
+  B: "#F0C419",
+  C: "#5EC8F0",
+  D: "#3D7EFF",
 };
 
 const QuizCard: React.FC<{
@@ -283,10 +283,10 @@ const QuizCard: React.FC<{
 }> = ({ title, body, answer, isPortrait, optionFrom, optionStep }) => {
   const frame = useCurrentFrame();
   const sheet = parseQuizSheet({ title, body, answer });
-  const badge = quizSeriesBadge({ title, body });
+  const headline = quizSeriesHeadline({ title, body });
   const revealAll = Boolean(sheet.answer);
-  const optionFont = sheet.code ? (isPortrait ? 32 : 26) : isPortrait ? 38 : 30;
-  const questionFont = sheet.code ? (isPortrait ? 42 : 34) : isPortrait ? 56 : 44;
+  const optionFont = sheet.code ? (isPortrait ? 44 : 34) : isPortrait ? 48 : 36;
+  const questionFont = sheet.code ? (isPortrait ? 40 : 32) : isPortrait ? 52 : 40;
   const questionText =
     sheet.question.replace(/^\d+[).]\s*/, "").trim() ||
     (sheet.code ? "What is the output?" : "");
@@ -298,157 +298,123 @@ const QuizCard: React.FC<{
   return (
     <div
       style={{
-        margin: isPortrait ? "28px auto 0" : "22px auto 0",
+        margin: isPortrait ? "8px auto 0" : "6px auto 0",
         width: "100%",
-        maxWidth: isPortrait ? 1020 : 1100,
+        maxWidth: isPortrait ? 980 : 1100,
         position: "relative",
         display: "flex",
         flexDirection: "column",
         justifyContent: "flex-start",
-        borderRadius: 28,
-        padding: isPortrait ? "36px 22px 20px" : "32px 26px 18px",
-        background:
-          "linear-gradient(180deg, rgba(18, 12, 40, 0.94) 0%, rgba(8, 10, 24, 0.96) 100%)",
-        border: "3px solid rgba(255, 209, 102, 0.95)",
-        boxShadow:
-          "0 0 0 6px rgba(247, 37, 133, 0.18), 0 24px 60px rgba(0,0,0,0.55)",
         color: "white",
       }}
     >
-      <div
+      <p
         style={{
-          position: "absolute",
-          top: 0,
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          padding: isPortrait ? "10px 26px" : "8px 20px",
-          borderRadius: 999,
-          backgroundColor: "rgba(8, 10, 24, 0.98)",
-          border: "2px solid #FFD166",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+          margin: 0,
+          marginBottom: isPortrait ? 28 : 20,
+          fontFamily: anton,
+          fontWeight: 400,
+          fontSize: isPortrait ? 72 : 56,
+          letterSpacing: 1.2,
+          lineHeight: 0.95,
+          textAlign: "center",
+          textTransform: "uppercase",
+          textShadow: "0 6px 22px rgba(0,0,0,0.55)",
         }}
       >
+        <span style={{ color: "#6EB5F0" }}>{headline.lang}</span>
+        {" "}
+        <span style={{ color: "#F0C419" }}>{headline.rest}</span>
+      </p>
+      {sheet.code ? (
+        <MacCodeWindow code={sheet.code} isPortrait={isPortrait} />
+      ) : null}
+      {questionText ? (
         <p
           style={{
-            margin: 0,
-            fontFamily: anton,
-            fontWeight: 400,
-            fontSize: isPortrait ? 28 : 22,
-            letterSpacing: 2.4,
-            color: "#FFD166",
-            lineHeight: 1,
-            textTransform: "uppercase",
-            whiteSpace: "nowrap",
+            margin: sheet.code
+              ? isPortrait
+                ? "28px 8px 26px"
+                : "22px 8px 20px"
+              : isPortrait
+                ? "12px 8px 28px"
+                : "8px 8px 22px",
+            fontFamily: outfit,
+            fontWeight: 800,
+            fontSize: questionFont,
+            lineHeight: 1.2,
+            color: "white",
+            textAlign: "center",
+            letterSpacing: -0.4,
+            textShadow: "0 4px 16px rgba(0,0,0,0.55)",
           }}
         >
-          {badge}
+          {questionText}
         </p>
-      </div>
-      {questionText ? (
-        <div
-          style={{
-            margin: "18px 0 28px",
-            padding: isPortrait ? "16px 16px" : "12px 16px",
-            flexShrink: 0,
-            borderRadius: 20,
-            backgroundColor: "rgba(255,255,255,0.1)",
-            border: "2px solid rgba(255,255,255,0.18)",
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              fontFamily: outfit,
-              fontWeight: 800,
-              fontSize: questionFont,
-              lineHeight: 1.12,
-              color: "white",
-              textAlign: "center",
-              letterSpacing: -0.6,
-              textShadow: "0 4px 16px rgba(0,0,0,0.55)",
-            }}
-          >
-            {questionText}
-          </p>
-        </div>
       ) : null}
-      {sheet.code ? (
-        <VsCodePane code={sheet.code} isPortrait={isPortrait} />
-      ) : (
-        <div style={{ height: isPortrait ? 28 : 20 }} />
-      )}
-      <div style={{ marginTop: isPortrait ? 8 : 6 }}>
-      {options.map((option, index) => {
-        const selected = sheet.answer === option.letter;
-        const missed = Boolean(sheet.answer) && !selected;
-        const color = OPTION_COLORS[option.letter] || "#FFD166";
-        const appearAt = revealAll ? 0 : optionFrom + index * optionStep;
-        const appear = interpolate(
-          frame,
-          [appearAt, appearAt + 7],
-          [28, 0],
-          { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-        );
-        const opacity = interpolate(
-          frame,
-          [appearAt, appearAt + 6],
-          [0, 1],
-          { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-        );
-        return (
-          <div
-            key={`${option.letter}-${index}`}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              marginBottom: 16,
-              padding: isPortrait ? "14px 16px" : "12px 14px",
-              borderRadius: 18,
-              flexShrink: 0,
-              backgroundColor: selected
-                ? "rgba(124, 255, 178, 0.22)"
-                : "rgba(255,255,255,0.06)",
-              border: selected ? `3px solid ${color}` : "2px solid rgba(255,255,255,0.14)",
-              opacity: missed ? 0.38 * opacity : opacity,
-              transform: `translateX(${appear}px) scale(${selected ? 1.04 : 1})`,
-            }}
-          >
-            <span
+      <div style={{ paddingLeft: isPortrait ? 12 : 8 }}>
+        {options.map((option, index) => {
+          const selected = sheet.answer === option.letter;
+          const missed = Boolean(sheet.answer) && !selected;
+          const color = OPTION_COLORS[option.letter] || "#5EC8F0";
+          const appearAt = revealAll ? 0 : optionFrom + index * optionStep;
+          const appear = interpolate(
+            frame,
+            [appearAt, appearAt + 7],
+            [28, 0],
+            { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+          );
+          const opacity = interpolate(
+            frame,
+            [appearAt, appearAt + 6],
+            [0, 1],
+            { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+          );
+          return (
+            <div
+              key={`${option.letter}-${index}`}
               style={{
-                width: isPortrait ? 58 : 48,
-                height: isPortrait ? 58 : 48,
-                borderRadius: 16,
-                backgroundColor: color,
-                color: "#111",
-                fontFamily: anton,
-                fontWeight: 400,
-                fontSize: isPortrait ? 36 : 30,
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                boxShadow: "0 6px 0 rgba(0,0,0,0.35)",
+                alignItems: "baseline",
+                gap: 14,
+                marginBottom: isPortrait ? 18 : 14,
+                opacity: missed ? 0.38 * opacity : opacity,
+                transform: `translateX(${appear}px) scale(${selected ? 1.03 : 1})`,
               }}
             >
-              {option.letter}
-            </span>
-            <span
-              style={{
-                fontFamily: outfit,
-                fontWeight: 700,
-                fontSize: optionFont,
-                lineHeight: 1.18,
-                color: "white",
-                letterSpacing: -0.2,
-              }}
-            >
-              {option.text}
-              {selected ? "  ✓" : ""}
-            </span>
-          </div>
-        );
-      })}
+              <span
+                style={{
+                  fontFamily: outfit,
+                  fontWeight: 800,
+                  fontSize: optionFont,
+                  lineHeight: 1.15,
+                  color,
+                  letterSpacing: -0.4,
+                  textShadow: selected
+                    ? `0 0 18px ${color}`
+                    : "0 4px 12px rgba(0,0,0,0.45)",
+                  flexShrink: 0,
+                }}
+              >
+                {option.letter})
+              </span>
+              <span
+                style={{
+                  fontFamily: outfit,
+                  fontWeight: 700,
+                  fontSize: optionFont,
+                  lineHeight: 1.18,
+                  color: "white",
+                  letterSpacing: -0.2,
+                  textShadow: "0 4px 12px rgba(0,0,0,0.45)",
+                }}
+              >
+                {option.text}
+                {selected ? "  ✓" : ""}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -476,42 +442,23 @@ function fallbackQuizOptions(body: string): { letter: string; text: string }[] {
     );
 }
 
-function editorTabName(code: string): string {
-  if (/\bSELECT\b|\bFROM\b/i.test(code)) {
-    return "query.sql";
-  }
-  if (/\bpublic\s+class\b|System\.out/.test(code)) {
-    return "Main.java";
-  }
-  if (/\b(const|let|var|function|=>)\b/.test(code) && !/\bdef\s|\bprint\s*\(/.test(code)) {
-    return "index.js";
-  }
-  if (/\bclass\s|\bdef\s|\bprint\s*\(|:\s*$/m.test(code)) {
-    return "main.py";
-  }
-  return "snippet.txt";
-}
-
-const VsCodePane: React.FC<{ code: string; isPortrait: boolean }> = ({
+const MacCodeWindow: React.FC<{ code: string; isPortrait: boolean }> = ({
   code,
   isPortrait,
 }) => {
   const lines = code.split(/\r?\n/).slice(0, 8);
-  const tab = editorTabName(code);
-  const fontSize = isPortrait ? 28 : 22;
+  const fontSize = lines.length > 5 ? (isPortrait ? 30 : 24) : isPortrait ? 36 : 28;
   return (
     <div
       style={{
-        minHeight: isPortrait ? 320 : 220,
-        maxHeight: isPortrait ? 520 : 360,
-        margin: "0 0 36px",
-        borderRadius: 12,
+        margin: "0 auto",
+        width: "92%",
+        maxWidth: isPortrait ? 860 : 920,
+        borderRadius: 22,
         overflow: "hidden",
-        backgroundColor: "#1e1e1e",
-        border: "1px solid #3c3c3c",
-        display: "flex",
-        flexDirection: "column",
-        boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
+        backgroundColor: "#2b3444",
+        border: "1px solid rgba(255,255,255,0.1)",
+        boxShadow: "0 22px 48px rgba(0,0,0,0.5)",
       }}
     >
       <div
@@ -519,68 +466,34 @@ const VsCodePane: React.FC<{ code: string; isPortrait: boolean }> = ({
           display: "flex",
           alignItems: "center",
           gap: 10,
-          padding: "10px 14px",
-          backgroundColor: "#323233",
-          borderBottom: "1px solid #1e1e1e",
-          flexShrink: 0,
+          padding: isPortrait ? "16px 20px 10px" : "12px 16px 8px",
         }}
       >
         <Dot color="#ff5f56" />
         <Dot color="#ffbd2e" />
         <Dot color="#27c93f" />
-        <span
-          style={{
-            marginLeft: 10,
-            padding: "4px 12px",
-            borderRadius: "8px 8px 0 0",
-            backgroundColor: "#1e1e1e",
-            color: "#cccccc",
-            fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-            fontSize: isPortrait ? 18 : 16,
-          }}
-        >
-          {tab}
-        </span>
-        <span
-          style={{
-            marginLeft: "auto",
-            color: "#858585",
-            fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-            fontSize: 14,
-          }}
-        >
-          UTF-8
-        </span>
       </div>
-      <div
-        style={{
-          flex: 1,
-          padding: isPortrait ? "22px 8px 28px 0" : "16px 8px 20px 0",
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ padding: isPortrait ? "8px 22px 28px 8px" : "6px 18px 22px 6px" }}>
         {lines.map((line, index) => (
           <div
-            key={`vs-line-${index}`}
+            key={`mac-line-${index}`}
             style={{
               display: "flex",
               alignItems: "flex-start",
-              minHeight: fontSize * 1.45,
+              minHeight: fontSize * 1.42,
             }}
           >
             <span
               style={{
-                width: isPortrait ? 48 : 40,
+                width: isPortrait ? 52 : 42,
                 flexShrink: 0,
                 textAlign: "right",
-                paddingRight: 12,
-                color: "#858585",
+                paddingRight: 18,
+                color: "#8b93a5",
                 fontFamily:
                   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-                fontSize: fontSize - 4,
-                lineHeight: 1.45,
+                fontSize: fontSize - 2,
+                lineHeight: 1.42,
               }}
             >
               {index + 1}
@@ -592,8 +505,8 @@ const VsCodePane: React.FC<{ code: string; isPortrait: boolean }> = ({
                 fontFamily:
                   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
                 fontSize,
-                lineHeight: 1.45,
-                color: "#d4d4d4",
+                lineHeight: 1.42,
+                color: "#f2f5fa",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
               }}
@@ -622,18 +535,26 @@ const Dot: React.FC<{ color: string }> = ({ color }) => (
 const HighlightedCode: React.FC<{ text: string }> = ({ text }) => {
   const parts: ReactNode[] = [];
   let last = 0;
-  const matcher = new RegExp(CODE_KEYWORDS.source, "g");
+  const matcher = new RegExp(CODE_TOKEN.source, "g");
   let match: RegExpExecArray | null;
   while ((match = matcher.exec(text))) {
     if (match.index > last) {
       parts.push(text.slice(last, match.index));
     }
+    const token = match[0];
+    const color = token.startsWith("#")
+      ? "#6a9955"
+      : token.startsWith('"') || token.startsWith("'")
+        ? "#ce9178"
+        : /^\d/.test(token)
+          ? "#F5D76E"
+          : "#5BA3E8";
     parts.push(
-      <span key={`${match.index}-${match[0]}`} style={{ color: "#569cd6" }}>
-        {match[0]}
+      <span key={`${match.index}-${token}`} style={{ color }}>
+        {token}
       </span>,
     );
-    last = match.index + match[0].length;
+    last = match.index + token.length;
   }
   if (last < text.length) {
     parts.push(text.slice(last));

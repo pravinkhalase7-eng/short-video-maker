@@ -231,8 +231,8 @@ const ClockFace: React.FC<{
       <div
         style={{
           position: "absolute",
-          top: isPortrait ? 22 : 16,
-          right: isPortrait ? 22 : 28,
+          bottom: isPortrait ? 360 : 180,
+          right: isPortrait ? 28 : 32,
           transform: `scale(${tickPulse})`,
         }}
       >

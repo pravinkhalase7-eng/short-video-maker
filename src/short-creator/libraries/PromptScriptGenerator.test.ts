@@ -11,7 +11,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -661,11 +661,17 @@ D) Error`,
   );
   expect(mutableScript.scenes[0].text.toLowerCase()).not.toContain("return a");
   expect(
-    quizSeriesBadge({
-      title: "Python OOP Quiz",
-      body: codeSheet.code,
+    quizSeriesHeadline({
+      title: "Python Quiz",
+      body: "What is the output?\nprint(x // y)\nA) 3, 1\nB) 3, 0",
     }),
-  ).toBe("PYTHON");
+  ).toEqual({ lang: "PYTHON", rest: "OUTPUT MCQ" });
+  expect(
+    quizSeriesHeadline({
+      title: "Python Quiz",
+      body: "Which one is a Python list?\nA) {1, 2, 3}\nB) (1, 2, 3)",
+    }),
+  ).toEqual({ lang: "PYTHON", rest: "MCQ" });
   const reveal = quizOptionReveal({ fps: 30, delayFrames: 0 });
   expect(reveal.from).toBeGreaterThan(0);
   expect(reveal.step).toBeGreaterThanOrEqual(18);

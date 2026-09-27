@@ -17,6 +17,7 @@ import {
   parseQuizSheet,
   quizCountdownTiming,
   quizOptionReveal,
+  quizSeriesBadge,
   sceneClips,
   shortVideoSchema,
   splitClipWindows,
@@ -173,7 +174,7 @@ export const ShortVideo: React.FC<
             key={`scene-${i}`}
           >
             {worksheet ? (
-              <QuizDeskBackground />
+              <QuizDeskBackground lang={quizSeriesBadge(scene.exampleCard)} />
             ) : (
               <SceneBroll
                 clips={clips}

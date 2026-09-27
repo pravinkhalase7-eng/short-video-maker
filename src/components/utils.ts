@@ -428,6 +428,20 @@ export function quizSeriesBadge(card?: {
   return quizSeriesLang(blob) || (title || "QUIZ").slice(0, 14).toUpperCase();
 }
 
+export function quizSeriesHeadline(card?: {
+  title?: string;
+  body?: string;
+}): { lang: string; rest: string } {
+  const lang = quizSeriesBadge(card);
+  const sheet = card
+    ? parseQuizSheet({ title: card.title, body: card.body || "" })
+    : null;
+  return {
+    lang,
+    rest: sheet?.code ? "OUTPUT MCQ" : "MCQ",
+  };
+}
+
 function quizSeriesLang(text: string): string | null {
   if (/\bpython\b|\bdef\s|\bprint\s*\(|\blambda\b|\bdict\b/i.test(text)) {
     return "PYTHON";

@@ -141,52 +141,188 @@ export const CutHit: React.FC<{
   );
 };
 
-export const QuizDeskBackground: React.FC = () => {
+export const QuizDeskBackground: React.FC<{ lang?: string }> = ({ lang }) => {
   const frame = useCurrentFrame();
-  const drift = interpolate(frame, [0, 200], [0, 1], {
+  const drift = interpolate(frame, [0, 240], [0, 1], {
     extrapolateRight: "extend",
   });
-  const pulse = interpolate(frame % 40, [0, 20, 40], [0.7, 1, 0.7], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  const tint =
+    lang === "JAVA"
+      ? "#f89820"
+      : lang === "JS"
+        ? "#f7df1e"
+        : lang === "SQL"
+          ? "#61dafb"
+          : "#3776AB";
 
   return (
     <AbsoluteFill
       style={{
         background:
-          "radial-gradient(circle at 20% 15%, #3a1c6e 0%, #12081f 42%, #07060f 100%)",
+          "radial-gradient(ellipse at 50% 0%, #1a2740 0%, #0c1422 48%, #070d16 100%)",
       }}
     >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          opacity: 0.14,
+          backgroundImage:
+            "repeating-linear-gradient(0deg, transparent 0px, transparent 31px, rgba(94,200,240,0.12) 32px), repeating-linear-gradient(90deg, transparent 0px, transparent 31px, rgba(94,200,240,0.08) 32px)",
+        }}
+      />
       {[
-        { top: "8%", left: "-8%", size: 280, color: "rgba(247,37,133,0.28)" },
-        { top: "62%", left: "58%", size: 340, color: "rgba(76,201,240,0.22)" },
-        { top: "28%", left: "62%", size: 180, color: "rgba(255,209,102,0.2)" },
-      ].map((blob, index) => (
+        { top: "4%", left: "6%", size: 118, rotate: -18, opacity: 0.55 },
+        { top: "8%", right: "4%", size: 92, rotate: 22, opacity: 0.4 },
+        { top: "38%", right: "-4%", size: 160, rotate: -8, opacity: 0.28 },
+        { top: "62%", left: "8%", size: 150, rotate: 16, opacity: 0.42 },
+        { top: "78%", right: "10%", size: 120, rotate: -24, opacity: 0.5 },
+      ].map((mark, index) => (
         <div
-          key={`blob-${index}`}
+          key={`logo-${index}`}
           style={{
             position: "absolute",
-            top: blob.top,
-            left: blob.left,
-            width: blob.size,
-            height: blob.size,
-            borderRadius: 999,
-            backgroundColor: blob.color,
-            filter: "blur(8px)",
-            transform: `translateY(${Math.sin((drift + index) * 6) * 24}px) scale(${0.9 + pulse * 0.12})`,
+            top: mark.top,
+            left: mark.left,
+            right: mark.right,
+            opacity: mark.opacity,
+            transform: `translateY(${Math.sin((drift + index) * 4) * 10}px) rotate(${mark.rotate}deg)`,
           }}
-        />
+        >
+          <LangMark lang={lang} size={mark.size} accent={tint} />
+        </div>
       ))}
+      {[
+        { top: "6%", left: "4%", text: "{ }", size: 56 },
+        { top: "12%", right: "18%", text: "[ ]", size: 48 },
+        { top: "28%", left: "3%", text: "[ ]", size: 42 },
+        { top: "34%", right: "5%", text: ">>", size: 52 },
+        { top: "44%", right: "6%", text: "C>", size: 48 },
+        { top: "58%", right: "8%", text: "→", size: 54 },
+      ].map((glyph) => (
+        <span
+          key={glyph.text + glyph.top}
+          style={{
+            position: "absolute",
+            top: glyph.top,
+            left: glyph.left,
+            right: glyph.right,
+            color: tint,
+            opacity: 0.22,
+            fontFamily:
+              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            fontSize: glyph.size,
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          {glyph.text}
+        </span>
+      ))}
+      <pre
+        style={{
+          position: "absolute",
+          top: 40,
+          left: 36,
+          margin: 0,
+          color: "#8fb4d9",
+          opacity: 0.16,
+          fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          fontSize: 18,
+          lineHeight: 1.55,
+          whiteSpace: "pre",
+        }}
+      >
+        {`dst.tas\nprint(x // y)\ndest.grade = "hit"\nwhile _ <= i:`}
+      </pre>
+      <pre
+        style={{
+          position: "absolute",
+          bottom: 80,
+          right: 24,
+          margin: 0,
+          color: "#8fb4d9",
+          opacity: 0.14,
+          fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          fontSize: 16,
+          lineHeight: 1.5,
+          textAlign: "right",
+          whiteSpace: "pre",
+        }}
+      >
+        {`if x_local != none:\n    print(x // y)\nelse:\n    print(cont)`}
+      </pre>
       <div
         style={{
           position: "absolute",
           inset: 0,
           background:
-            "linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 22%, transparent 78%, rgba(0,0,0,0.35) 100%)",
+            "linear-gradient(180deg, rgba(7,13,22,0.15) 0%, transparent 18%, transparent 72%, rgba(7,13,22,0.55) 100%)",
         }}
       />
     </AbsoluteFill>
+  );
+};
+
+const LangMark: React.FC<{ lang?: string; size: number; accent: string }> = ({
+  lang,
+  size,
+  accent,
+}) => {
+  if (lang === "JAVA") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 128 128">
+        <ellipse cx="64" cy="96" rx="36" ry="10" fill={accent} opacity="0.85" />
+        <path
+          d="M64 24c8 14-8 20 0 34 10-8 22-4 22 12-18 10-44 10-56-4 6-16 22-18 34-42z"
+          fill={accent}
+        />
+      </svg>
+    );
+  }
+  if (lang === "JS") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 128 128">
+        <rect width="128" height="128" rx="18" fill={accent} />
+        <text
+          x="18"
+          y="96"
+          fill="#111"
+          fontSize="64"
+          fontFamily="Arial Black, sans-serif"
+          fontWeight="800"
+        >
+          JS
+        </text>
+      </svg>
+    );
+  }
+  if (lang === "SQL") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 128 128">
+        <ellipse cx="64" cy="28" rx="40" ry="16" fill={accent} />
+        <path
+          d="M24 28v52c0 12 18 22 40 22s40-10 40-22V28"
+          fill="none"
+          stroke={accent}
+          strokeWidth="10"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 128 128">
+      <path
+        fill="#3776AB"
+        d="M63.391 1.984c-4.222.015-8.294.281-12.32 1.016-9.308 1.703-11.002 5.281-11.002 11.859v8.703h22.559v3.313H27.805c-7.792 0-14.637 4.661-16.75 13.516-2.461 10.176-2.57 16.526 0 27.188 1.906 7.438 6.438 13.516 14.23 13.516h9.22v-12.281c0-8.875 7.656-16.656 16.75-16.656h26.203c7.455 0 13.406-6.094 13.406-13.625V15.859c0-7.266-6.156-12.844-13.406-14.234C72.375 1.43 67.62 1.96 63.39 1.984zm-13.3 8.313c2.551 0 4.634 2.117 4.634 4.703 0 2.574-2.083 4.656-4.634 4.656-2.562 0-4.656-2.082-4.656-4.656 0-2.586 2.094-4.703 4.656-4.703z"
+      />
+      <path
+        fill="#FFD43B"
+        d="M91.852 28.375v12.141c0 9.25-7.875 17.03-16.75 17.03H48.9c-7.617 0-13.406 6.348-13.406 13.625v25.359c0 7.266 6.32 11.54 13.406 13.625 8.504 2.492 16.636 2.94 26.203 0 6.359-1.945 13.406-5.859 13.406-13.625V76.25H66.005V72.938h39.199c7.792 0 10.73-5.443 13.406-13.516 2.773-8.43 2.648-16.432 0-27.188-1.883-7.617-5.598-13.516-13.406-13.516H91.852zM75.078 89.422c2.562 0 4.656 2.117 4.656 4.703 0 2.574-2.094 4.688-4.656 4.688-2.551 0-4.641-2.113-4.641-4.688 0-2.586 2.09-4.703 4.641-4.703z"
+      />
+    </svg>
   );
 };
 
