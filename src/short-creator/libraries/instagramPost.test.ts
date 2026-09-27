@@ -16,7 +16,7 @@ test("quiz posts get a title, explanation, and five hashtags", () => {
         },
       },
       {
-        text: "The answer is C. Check the captions for the explanation. Follow for more.",
+        text: "The answer is C. Did you fall for the trap? The trick is in the captions. Follow for more.",
         searchTerms: ["python"],
         overlayText: "C",
         exampleCard: {
@@ -59,7 +59,7 @@ test("set intersection quizzes explain the operator and the traps", () => {
         },
       },
       {
-        text: "The answer is B. Check the captions for the explanation. Follow for more.",
+        text: "The answer is B. Did you fall for the trap? The trick is in the captions. Follow for more.",
         searchTerms: ["python"],
         overlayText: "B",
         exampleCard: {
@@ -98,7 +98,7 @@ test("list comprehensions get a beginner explanation", () => {
         },
       },
       {
-        text: "The answer is B. Check the captions for the explanation. Follow for more.",
+        text: "The answer is B. Did you fall for the trap? The trick is in the captions. Follow for more.",
         searchTerms: ["python"],
         overlayText: "B",
         exampleCard: {
@@ -135,7 +135,7 @@ test("list repetition quizzes explain * copies the list", () => {
         },
       },
       {
-        text: "The answer is B. Check the captions for the explanation. Follow for more.",
+        text: "The answer is B. Did you fall for the trap? The trick is in the captions. Follow for more.",
         searchTerms: ["python"],
         overlayText: "B",
         exampleCard: {

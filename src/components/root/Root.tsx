@@ -1,8 +1,9 @@
 import { CalculateMetadataFunction, Composition } from "remotion";
-import { shortVideoSchema } from "../utils";
+import { INSTAGRAM_REEL, shortVideoSchema } from "../utils";
 import { PortraitVideo } from "../videos/PortraitVideo";
 import { LandscapeVideo } from "../videos/LandscapeVideo";
 import { TestVideo } from "../videos/Test";
+import { QuizPoster } from "../videos/QuizPoster";
 import z from "zod";
 import { AvailableComponentsEnum } from "../types";
 
@@ -26,8 +27,8 @@ export const RemotionRoot: React.FC = () => {
         component={PortraitVideo}
         durationInFrames={30}
         fps={FPS}
-        width={1080}
-        height={1920}
+        width={INSTAGRAM_REEL.width}
+        height={INSTAGRAM_REEL.height}
         defaultProps={{
           music: {
             url:
@@ -319,6 +320,18 @@ export const RemotionRoot: React.FC = () => {
           },
         }}
         calculateMetadata={calculateMetadata}
+      />
+      <Composition
+        id="QuizPoster"
+        component={QuizPoster}
+        durationInFrames={1}
+        fps={FPS}
+        width={INSTAGRAM_REEL.width}
+        height={INSTAGRAM_REEL.height}
+        defaultProps={{
+          title: "Python Quiz",
+          body: "What is the output?\nx = 10\ny = 3\nprint(x // y)\nprint(x % y)\nA) 3, 1\nB) 3, 0\nC) 3.33, 1\nD) 4, 1",
+        }}
       />
       <Composition
         id="TestVideo"

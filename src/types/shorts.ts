@@ -253,6 +253,11 @@ export const createShortInput = z.object({
 });
 export type CreateShortInput = z.infer<typeof createShortInput>;
 
+export const quizPosterInput = z.object({
+  scenes: z.array(sceneInput).min(1).describe("Scenes that include the quiz card"),
+});
+export type QuizPosterInput = z.infer<typeof quizPosterInput>;
+
 export const generateShortInput = z.object({
   prompt: z
     .string()

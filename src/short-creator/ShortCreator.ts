@@ -333,6 +333,25 @@ export class ShortCreator {
     return videoId;
   }
 
+  public async renderQuizPoster(scenes: SceneInput[]): Promise<string> {
+    const card = scenes.find((scene) => scene.exampleCard?.body?.trim())
+      ?.exampleCard;
+    if (!card?.body?.trim()) {
+      throw new Error("No quiz card to render. Generate the quiz first.");
+    }
+    await fs.ensureDir(this.config.tempDirPath);
+    const outputLocation = path.join(
+      this.config.tempDirPath,
+      `quiz-poster-${cuid()}.png`,
+    );
+    logger.debug({ outputLocation }, "Rendering quiz poster");
+    await this.remotion.renderStillPoster(
+      { title: card.title, body: card.body },
+      outputLocation,
+    );
+    return outputLocation;
+  }
+
   public getVideoPath(videoId: string): string {
     return path.join(this.config.videosDirPath, `${videoId}.mp4`);
   }

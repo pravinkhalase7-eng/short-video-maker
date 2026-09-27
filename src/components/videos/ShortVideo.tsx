@@ -269,7 +269,7 @@ export const ShortVideo: React.FC<
                 durationInFrames={Math.max(18, spokenFrames)}
                 variant={variant}
                 play
-                text="CHECK THE CAPTIONS FOR THE EXPLANATION"
+                text="FELL FOR THE TRAP? THE TRICK IS IN THE CAPTIONS"
               />
             ) : null}
             <SceneCaptions

@@ -245,12 +245,12 @@ function buildSystemPrompt(options: NormalizedScriptOptions): string {
 - The on-screen card is a catchy quiz card: a title, one question, optional snippet, and labeled options A B C D.
 - Question scene: tell the viewer to read the snippet and pick an output. Do NOT read the code or the option values aloud. exampleCard.kind is "quiz". title is "{Topic} Quiz" (not Q1). holdMs is ${limits.holdMs}. Do not set overlayText.
 - If the user pasted a complete question with a snippet and A B C D choices, use THAT worksheet verbatim. Do not invent a different question or snippet. Only solve it: scene 2 title is the correct letter, and the spoken answer explains why that output happens.
-- PROGRAMMING / CODE TOPICS (Java, Python, JavaScript, lambdas, streams, SQL, APIs): do NOT ask a theory question. Show a short real snippet (2-5 lines, no markdown fences) and ask "What is the output?" Options must be four possible outputs A B C D, including one common trap. Spoken question text MUST be "What is the output? Lock your guess. Comment A, B, C, or D." Never say "read this snippet", "like an editor", the option values, the code, or extra snippet words. Spoken answer text: "The answer is B. Check the captions for the explanation. Follow for more." Do not speak a hint.
+- PROGRAMMING / CODE TOPICS (Java, Python, JavaScript, lambdas, streams, SQL, APIs): do NOT ask a theory question. Show a short real snippet (2-5 lines, no markdown fences) and ask "What is the output?" Options must be four possible outputs A B C D, including one common trap. Spoken question text MUST be "What is the output? Lock your guess. Comment A, B, C, or D." Never say "read this snippet", "like an editor", the option values, the code, or extra snippet words. Spoken answer text: "The answer is B. Did you fall for the trap? The trick is in the captions. Follow for more." Do not speak a hint.
 - exampleCard body lines:
   1) the question, e.g. "What is the output?"
   2-6) the code snippet if this is a program quiz. Put each statement on its own line. Never start a code line with "A." unless it is the option "A) ..."
   then "A) ...", "B) ...", "C) ...", "D) ..." as the output choices. Always include the letter and a space after it.
-- Answer scene: "The answer is B. Check the captions for the explanation. Follow for more." Do not speak a hint or the why. exampleCard.kind is "quiz", title is the winning letter only (A, B, C, or D). body is the SAME worksheet lines as the question scene. overlayText is the letter. holdMs is 0.
+- Answer scene: "The answer is B. Did you fall for the trap? The trick is in the captions. Follow for more." Do not speak a hint or the why. exampleCard.kind is "quiz", title is the winning letter only (A, B, C, or D). body is the SAME worksheet lines as the question scene. overlayText is the letter. holdMs is 0.
 - For non-programming topics, a single fact question with A B C D is fine.
 - Do NOT set hookText. The first frame is the question card. Options A B C D appear one by one.
 - music: funny (quirky quiz energy). Do not use chill unless the user asks for chill.
@@ -1311,7 +1311,7 @@ function applyProgrammingQuizSpeech(scenes: SceneInput[]): SceneInput[] {
 }
 
 function quizAnswerSpeech(letter: string): string {
-  return `The answer is ${letter}. Check the captions for the explanation. Follow for more.`;
+  return `The answer is ${letter}. Did you fall for the trap? The trick is in the captions. Follow for more.`;
 }
 
 function applyQuizHolds(scenes: SceneInput[], holdMs: number): SceneInput[] {

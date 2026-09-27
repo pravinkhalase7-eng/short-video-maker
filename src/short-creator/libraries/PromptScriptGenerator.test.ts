@@ -11,7 +11,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, INSTAGRAM_REEL } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -412,7 +412,8 @@ test("code quizzes ask for program output, not theory", () => {
   expect(result.scenes[0].text.toLowerCase()).toMatch(/what is the output/);
   expect(result.scenes[0].text.toLowerCase()).not.toMatch(/editor|snippet/);
   expect(result.scenes[0].text).not.toMatch(/A:\s*1|A\)\s*1/i);
-  expect(result.scenes[1].text.toLowerCase()).toMatch(/check the captions/);
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/fall for the trap/);
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/trick is in the captions/);
   expect(result.scenes[1].text.toLowerCase()).not.toMatch(/hint:/);
   const sheet = parseQuizSheet({
     title: result.scenes[0].exampleCard?.title,
@@ -454,7 +455,8 @@ test("pasted programming quizzes keep the snippet and solve it", () => {
   expect(result.scenes[1].exampleCard?.title).toMatch(/Quiz$/i);
   expect(result.scenes[1].overlayText).toBe("B");
   expect(result.scenes[1].text).toMatch(/answer is B/i);
-  expect(result.scenes[1].text.toLowerCase()).toMatch(/check the captions/);
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/fall for the trap/);
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/trick is in the captions/);
   expect(result.scenes[1].text.toLowerCase()).not.toMatch(/hint:/);
   expect(result.scenes[1].text.toLowerCase()).toMatch(/follow for more/);
   expect(result.config.music).toBe(MusicMoodEnum.funny);
@@ -594,6 +596,10 @@ test("captionsFromSpeech follows the detected speech window", () => {
 });
 
 test("quiz videos skip Pexels and use a hardcoded worksheet", () => {
+  expect(INSTAGRAM_REEL.width).toBe(1080);
+  expect(INSTAGRAM_REEL.height).toBe(1920);
+  expect(INSTAGRAM_REEL.safeTop).toBeGreaterThanOrEqual(140);
+  expect(INSTAGRAM_REEL.safeBottom).toBeGreaterThanOrEqual(250);
   expect(usesHardcodedWorksheet({ format: "quiz" })).toBe(true);
   expect(usesHardcodedWorksheet({ format: "story" })).toBe(false);
   expect(

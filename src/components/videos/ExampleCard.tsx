@@ -1,17 +1,17 @@
 import type { ReactNode } from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
-import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
-import { loadFont as loadOutfit } from "@remotion/google-fonts/Outfit";
+import { loadFont as loadRowdies } from "@remotion/google-fonts/Rowdies";
+import { loadFont as loadNunito } from "@remotion/google-fonts/Nunito";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
-import { looksLikeCode, parseQuizSheet, quizSeriesHeadline } from "../utils";
+import { looksLikeCode, parseQuizSheet, quizSeriesHeadline, INSTAGRAM_REEL } from "../utils";
 
 const { fontFamily } = loadFont();
-const { fontFamily: anton } = loadAnton("normal", {
-  weights: ["400"],
+const { fontFamily: rowdies } = loadRowdies("normal", {
+  weights: ["700"],
   subsets: ["latin"],
 });
-const { fontFamily: outfit } = loadOutfit("normal", {
-  weights: ["700", "800"],
+const { fontFamily: nunito } = loadNunito("normal", {
+  weights: ["800", "900"],
   subsets: ["latin"],
 });
 
@@ -32,6 +32,7 @@ export const ExampleCardOverlay: React.FC<{
   optionFrom?: number;
   optionStep?: number;
   answerLetter?: string;
+  poster?: boolean;
 }> = ({
   card,
   variant,
@@ -40,10 +41,11 @@ export const ExampleCardOverlay: React.FC<{
   optionFrom,
   optionStep,
   answerLetter,
+  poster,
 }) => {
   const frame = useCurrentFrame();
   const body = card.body.trim();
-  if (!body || sceneFrames < 14) {
+  if (!body || (!poster && sceneFrames < 14)) {
     return null;
   }
 
@@ -60,29 +62,33 @@ export const ExampleCardOverlay: React.FC<{
         Math.max(delayFrames, 8),
         Math.max(8, sceneFrames - 28),
       );
-  const opacity = isQuiz
-    ? interpolate(frame, [start, start + 6], [0, 1], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      })
-    : interpolate(
-        frame,
-        strictlyIncreasing([
-          start,
-          start + 6,
-          Math.max(start + 18, sceneFrames - 8),
-          Math.min(sceneFrames, Math.max(start + 24, sceneFrames - 2)),
-        ]),
-        [0, 1, 1, 0],
-        {
+  const opacity = poster
+    ? 1
+    : isQuiz
+      ? interpolate(frame, [start, start + 6], [0, 1], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
-        },
-      );
-  const rise = interpolate(frame, [start, start + 8], [18, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+        })
+      : interpolate(
+          frame,
+          strictlyIncreasing([
+            start,
+            start + 6,
+            Math.max(start + 18, sceneFrames - 8),
+            Math.min(sceneFrames, Math.max(start + 24, sceneFrames - 2)),
+          ]),
+          [0, 1, 1, 0],
+          {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          },
+        );
+  const rise = poster
+    ? 0
+    : interpolate(frame, [start, start + 8], [18, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
   const isPortrait = variant === "portrait";
 
   return (
@@ -90,10 +96,20 @@ export const ExampleCardOverlay: React.FC<{
       style={{
         justifyContent: isQuiz ? "flex-start" : "center",
         alignItems: "center",
-        paddingTop: isPortrait ? (isQuiz ? 44 : 80) : 40,
-        paddingBottom: isPortrait ? (isQuiz ? 380 : 280) : 160,
-        paddingLeft: isPortrait ? 28 : 80,
-        paddingRight: isPortrait ? 28 : 80,
+        display: "flex",
+        flexDirection: "column",
+        paddingTop: isPortrait
+          ? isQuiz
+            ? INSTAGRAM_REEL.safeTop
+            : 80
+          : 40,
+        paddingBottom: isPortrait
+          ? isQuiz
+            ? INSTAGRAM_REEL.safeBottom
+            : 280
+          : 160,
+        paddingLeft: isPortrait ? INSTAGRAM_REEL.safeX : 80,
+        paddingRight: isPortrait ? INSTAGRAM_REEL.safeX : 80,
         pointerEvents: "none",
         opacity,
       }}
@@ -130,6 +146,7 @@ export const ExampleCardOverlay: React.FC<{
             isPortrait={isPortrait}
             optionFrom={optionFrom ?? start + 10}
             optionStep={optionStep ?? 18}
+            poster={poster}
           />
         ) : (
           <FactCard title={card.title} body={body} isPortrait={isPortrait} />
@@ -280,13 +297,14 @@ const QuizCard: React.FC<{
   isPortrait: boolean;
   optionFrom: number;
   optionStep: number;
-}> = ({ title, body, answer, isPortrait, optionFrom, optionStep }) => {
+  poster?: boolean;
+}> = ({ title, body, answer, isPortrait, optionFrom, optionStep, poster }) => {
   const frame = useCurrentFrame();
-  const sheet = parseQuizSheet({ title, body, answer });
+  const sheet = parseQuizSheet({ title, body, answer: poster ? undefined : answer });
   const headline = quizSeriesHeadline({ title, body });
-  const revealAll = Boolean(sheet.answer);
-  const optionFont = sheet.code ? (isPortrait ? 44 : 34) : isPortrait ? 48 : 36;
-  const questionFont = sheet.code ? (isPortrait ? 40 : 32) : isPortrait ? 52 : 40;
+  const revealAll = Boolean(poster) || Boolean(sheet.answer);
+  const optionFont = sheet.code ? (isPortrait ? 52 : 38) : isPortrait ? 56 : 42;
+  const questionFont = sheet.code ? (isPortrait ? 42 : 32) : isPortrait ? 50 : 38;
   const questionText =
     sheet.question.replace(/^\d+[).]\s*/, "").trim() ||
     (sheet.code ? "What is the output?" : "");
@@ -298,9 +316,9 @@ const QuizCard: React.FC<{
   return (
     <div
       style={{
-        margin: isPortrait ? "8px auto 0" : "6px auto 0",
+        margin: 0,
         width: "100%",
-        maxWidth: isPortrait ? 980 : 1100,
+        maxWidth: isPortrait ? 968 : 1100,
         position: "relative",
         display: "flex",
         flexDirection: "column",
@@ -311,65 +329,73 @@ const QuizCard: React.FC<{
       <p
         style={{
           margin: 0,
-          marginBottom: isPortrait ? 28 : 20,
-          fontFamily: anton,
-          fontWeight: 400,
-          fontSize: isPortrait ? 72 : 56,
-          letterSpacing: 1.2,
-          lineHeight: 0.95,
+          marginBottom: isPortrait ? 36 : 24,
+          flexShrink: 0,
+          fontFamily: rowdies,
+          fontWeight: 700,
+          fontSize: isPortrait ? 64 : 50,
+          letterSpacing: 0.2,
+          lineHeight: 1,
           textAlign: "center",
           textTransform: "uppercase",
-          textShadow: "0 6px 22px rgba(0,0,0,0.55)",
+          whiteSpace: "nowrap",
+          WebkitTextStroke: isPortrait ? "4px #0b1220" : "3px #0b1220",
+          paintOrder: "stroke fill",
+          textShadow: "0 6px 0 #071018, 0 12px 18px rgba(0,0,0,0.45)",
         }}
       >
-        <span style={{ color: "#6EB5F0" }}>{headline.lang}</span>
+        <span style={{ color: "#62B3F0" }}>{headline.lang}</span>
         {" "}
         <span style={{ color: "#F0C419" }}>{headline.rest}</span>
       </p>
       {sheet.code ? (
-        <MacCodeWindow code={sheet.code} isPortrait={isPortrait} />
+        <div style={{ flexShrink: 0, marginBottom: isPortrait ? 36 : 24 }}>
+          <MacCodeWindow code={sheet.code} isPortrait={isPortrait} />
+        </div>
       ) : null}
       {questionText ? (
         <p
           style={{
-            margin: sheet.code
-              ? isPortrait
-                ? "28px 8px 26px"
-                : "22px 8px 20px"
-              : isPortrait
-                ? "12px 8px 28px"
-                : "8px 8px 22px",
-            fontFamily: outfit,
+            margin: 0,
+            marginBottom: isPortrait ? 36 : 24,
+            flexShrink: 0,
+            fontFamily: nunito,
             fontWeight: 800,
             fontSize: questionFont,
-            lineHeight: 1.2,
+            lineHeight: 1.25,
             color: "white",
             textAlign: "center",
-            letterSpacing: -0.4,
-            textShadow: "0 4px 16px rgba(0,0,0,0.55)",
+            letterSpacing: -0.3,
+            textShadow: "0 3px 0 #0b1220, 0 8px 16px rgba(0,0,0,0.45)",
           }}
         >
           {questionText}
         </p>
       ) : null}
-      <div style={{ paddingLeft: isPortrait ? 12 : 8 }}>
+      <div
+        style={{
+          paddingLeft: isPortrait ? 8 : 8,
+          paddingBottom: 0,
+          flexShrink: 0,
+        }}
+      >
         {options.map((option, index) => {
-          const selected = sheet.answer === option.letter;
-          const missed = Boolean(sheet.answer) && !selected;
+          const selected = !poster && sheet.answer === option.letter;
+          const missed = !poster && Boolean(sheet.answer) && !selected;
           const color = OPTION_COLORS[option.letter] || "#5EC8F0";
           const appearAt = revealAll ? 0 : optionFrom + index * optionStep;
-          const appear = interpolate(
-            frame,
-            [appearAt, appearAt + 7],
-            [28, 0],
-            { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-          );
-          const opacity = interpolate(
-            frame,
-            [appearAt, appearAt + 6],
-            [0, 1],
-            { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-          );
+          const appear = poster
+            ? 0
+            : interpolate(frame, [appearAt, appearAt + 7], [28, 0], {
+                extrapolateLeft: "clamp",
+                extrapolateRight: "clamp",
+              });
+          const opacity = poster
+            ? 1
+            : interpolate(frame, [appearAt, appearAt + 6], [0, 1], {
+                extrapolateLeft: "clamp",
+                extrapolateRight: "clamp",
+              });
           return (
             <div
               key={`${option.letter}-${index}`}
@@ -377,14 +403,14 @@ const QuizCard: React.FC<{
                 display: "flex",
                 alignItems: "baseline",
                 gap: 14,
-                marginBottom: isPortrait ? 18 : 14,
+                marginBottom: isPortrait ? 28 : 18,
                 opacity: missed ? 0.38 * opacity : opacity,
                 transform: `translateX(${appear}px) scale(${selected ? 1.03 : 1})`,
               }}
             >
               <span
                 style={{
-                  fontFamily: outfit,
+                  fontFamily: nunito,
                   fontWeight: 800,
                   fontSize: optionFont,
                   lineHeight: 1.15,
@@ -400,7 +426,7 @@ const QuizCard: React.FC<{
               </span>
               <span
                 style={{
-                  fontFamily: outfit,
+                  fontFamily: nunito,
                   fontWeight: 700,
                   fontSize: optionFont,
                   lineHeight: 1.18,
@@ -442,18 +468,18 @@ function fallbackQuizOptions(body: string): { letter: string; text: string }[] {
     );
 }
 
-const MacCodeWindow: React.FC<{ code: string; isPortrait: boolean }> = ({
-  code,
-  isPortrait,
-}) => {
+const MacCodeWindow: React.FC<{
+  code: string;
+  isPortrait: boolean;
+}> = ({ code, isPortrait }) => {
   const lines = code.split(/\r?\n/).slice(0, 8);
-  const fontSize = lines.length > 5 ? (isPortrait ? 30 : 24) : isPortrait ? 36 : 28;
+  const fontSize = lines.length > 5 ? (isPortrait ? 32 : 24) : isPortrait ? 40 : 30;
   return (
     <div
       style={{
         margin: "0 auto",
-        width: "92%",
-        maxWidth: isPortrait ? 860 : 920,
+        width: "100%",
+        maxWidth: isPortrait ? 900 : 960,
         borderRadius: 22,
         overflow: "hidden",
         backgroundColor: "#2b3444",
@@ -473,7 +499,11 @@ const MacCodeWindow: React.FC<{ code: string; isPortrait: boolean }> = ({
         <Dot color="#ffbd2e" />
         <Dot color="#27c93f" />
       </div>
-      <div style={{ padding: isPortrait ? "8px 22px 28px 8px" : "6px 18px 22px 6px" }}>
+      <div
+        style={{
+          padding: isPortrait ? "12px 24px 32px 12px" : "8px 18px 22px 8px",
+        }}
+      >
         {lines.map((line, index) => (
           <div
             key={`mac-line-${index}`}

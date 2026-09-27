@@ -1,14 +1,13 @@
 import z from "zod";
 import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 import path from "path";
 import { ensureBrowser } from "@remotion/renderer";
 
 import { Config } from "../../config";
-import { shortVideoSchema } from "../../components/utils";
+import { INSTAGRAM_REEL, getOrientationConfig, shortVideoSchema } from "../../components/utils";
 import { logger } from "../../logger";
 import { OrientationEnum } from "../../types/shorts";
-import { getOrientationConfig } from "../../components/utils";
 
 export class Remotion {
   constructor(
@@ -96,6 +95,46 @@ export class Remotion {
       },
       "Video rendered with Remotion",
     );
+  }
+
+  async renderStillPoster(
+    data: { title?: string; body: string },
+    outputLocation: string,
+  ) {
+    const composition = await selectComposition({
+      serveUrl: this.bundled,
+      id: "QuizPoster",
+      inputProps: data,
+    });
+
+    logger.debug(
+      {
+        outputLocation,
+        width: composition.width,
+        height: composition.height,
+      },
+      "Rendering quiz poster still",
+    );
+
+    if (
+      composition.width !== INSTAGRAM_REEL.width ||
+      composition.height !== INSTAGRAM_REEL.height
+    ) {
+      throw new Error(
+        `Quiz poster must be ${INSTAGRAM_REEL.width}×${INSTAGRAM_REEL.height} (9:16)`,
+      );
+    }
+
+    await renderStill({
+      composition,
+      serveUrl: this.bundled,
+      output: outputLocation,
+      inputProps: data,
+      frame: 0,
+      imageFormat: "png",
+      scale: 1,
+      timeoutInMilliseconds: 120000,
+    });
   }
 
   async testRender(outputLocation: string) {

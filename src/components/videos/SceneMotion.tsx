@@ -175,8 +175,9 @@ export const QuizDeskBackground: React.FC<{ lang?: string }> = ({ lang }) => {
         { top: "4%", left: "6%", size: 118, rotate: -18, opacity: 0.55 },
         { top: "8%", right: "4%", size: 92, rotate: 22, opacity: 0.4 },
         { top: "38%", right: "-4%", size: 160, rotate: -8, opacity: 0.28 },
-        { top: "62%", left: "8%", size: 150, rotate: 16, opacity: 0.42 },
-        { top: "78%", right: "10%", size: 120, rotate: -24, opacity: 0.5 },
+        { top: "62%", left: "4%", size: 170, rotate: 16, opacity: 0.5 },
+        { top: "76%", right: "6%", size: 150, rotate: -24, opacity: 0.58 },
+        { top: "84%", left: "28%", size: 130, rotate: 10, opacity: 0.36 },
       ].map((mark, index) => (
         <div
           key={`logo-${index}`}

@@ -166,11 +166,20 @@ export function createCaptionPages({
   return pages;
 }
 
+export const INSTAGRAM_REEL = {
+  width: 1080,
+  height: 1920,
+  aspectRatio: "9 / 16",
+  safeTop: 168,
+  safeBottom: 320,
+  safeX: 56,
+} as const;
+
 export function getOrientationConfig(orientation: OrientationEnum) {
   const config: Record<OrientationEnum, OrientationConfig> = {
     portrait: {
-      width: 1080,
-      height: 1920,
+      width: INSTAGRAM_REEL.width,
+      height: INSTAGRAM_REEL.height,
       component: AvailableComponentsEnum.PortraitVideo,
     },
     landscape: {

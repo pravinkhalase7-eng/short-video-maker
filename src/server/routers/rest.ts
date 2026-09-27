@@ -11,7 +11,7 @@ import { ShortCreator } from "../../short-creator/ShortCreator";
 import { logger } from "../../logger";
 import { Config } from "../../config";
 import { PromptScriptGenerator } from "../../short-creator/libraries/PromptScriptGenerator";
-import { generateShortInput } from "../../types/shorts";
+import { generateShortInput, quizPosterInput } from "../../types/shorts";
 
 // todo abstract class
 export class APIRouter {
@@ -90,6 +90,47 @@ export class APIRouter {
           logger.error(error, "Error generating script from prompt");
           res.status(500).json({
             error: "Failed to generate script",
+            message: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      },
+    );
+
+    this.router.post(
+      "/quiz-poster",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          const parsed = quizPosterInput.safeParse(req.body);
+          if (!parsed.success) {
+            res.status(400).json({
+              error: "Validation failed",
+              message:
+                parsed.error.errors[0]?.message || "Need a quiz card to render",
+            });
+            return;
+          }
+
+          const filePath = await this.shortCreator.renderQuizPoster(
+            parsed.data.scenes,
+          );
+          res.setHeader("Content-Type", "image/png");
+          res.setHeader(
+            "Content-Disposition",
+            'attachment; filename="quiz-poster.png"',
+          );
+          res.sendFile(path.resolve(filePath), (error) => {
+            fs.remove(filePath).catch(() => undefined);
+            if (error && !res.headersSent) {
+              logger.error(error, "Error sending quiz poster");
+              res.status(500).json({
+                error: "Failed to download quiz image",
+              });
+            }
+          });
+        } catch (error: unknown) {
+          logger.error(error, "Error rendering quiz poster");
+          res.status(500).json({
+            error: "Failed to render quiz image",
             message: error instanceof Error ? error.message : "Unknown error",
           });
         }

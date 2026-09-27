@@ -147,7 +147,7 @@ const CommentStrip: React.FC<{ variant: Variant; text: string }> = ({
           position: "absolute",
           left: 0,
           width: "100%",
-          bottom: isPortrait ? 300 : 140,
+          bottom: isPortrait ? 168 : 96,
           display: "flex",
           justifyContent: "center",
           paddingLeft: 28,

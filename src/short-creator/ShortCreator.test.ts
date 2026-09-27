@@ -109,6 +109,7 @@ vi.mock("@remotion/bundler", () => {
 vi.mock("@remotion/renderer", () => {
   return {
     renderMedia: vi.fn().mockResolvedValue(undefined),
+    renderStill: vi.fn().mockResolvedValue(undefined),
     selectComposition: vi.fn().mockResolvedValue({
       width: 1080,
       height: 1920,

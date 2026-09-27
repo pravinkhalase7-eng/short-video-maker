@@ -23,6 +23,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 import {
   SceneInput,
   RenderConfig,
@@ -74,6 +75,8 @@ const VideoCreator: React.FC = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [downloadingImage, setDownloadingImage] = useState(false);
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [scriptReady, setScriptReady] = useState(false);
   const [explanation, setExplanation] = useState("");
@@ -149,6 +152,12 @@ const VideoCreator: React.FC = () => {
     setExplanation("");
     setError(null);
     setSuccess(null);
+    setPosterUrl((previous) => {
+      if (previous) {
+        URL.revokeObjectURL(previous);
+      }
+      return null;
+    });
 
     try {
       const pastedQuiz =
@@ -203,6 +212,14 @@ const VideoCreator: React.FC = () => {
       });
       setScriptReady(true);
       setExplanation(generated.explanation || "");
+      if ((generated.config.format ?? "story") === "quiz") {
+        try {
+          const blob = await renderPosterBlob(generated.scenes);
+          replacePoster(blob);
+        } catch (posterError) {
+          console.error(posterError);
+        }
+      }
       setSuccess(
         generated.source === "local"
           ? generated.config.format === "quiz" && /A[)\]:.\-]\s+\S/.test(prompt)
@@ -224,6 +241,80 @@ const VideoCreator: React.FC = () => {
     }
   };
 
+  const buildApiScenes = (): SceneInput[] =>
+    scenes.map((scene) => ({
+      text: scene.text,
+      searchTerms: scene.searchTerms
+        .split(",")
+        .map((term) => term.trim())
+        .filter((term) => term.length > 0),
+      overlayText: scene.overlayText.trim() || undefined,
+      holdMs: scene.holdMs.trim() ? parseInt(scene.holdMs, 10) : undefined,
+      exampleCard: scene.exampleCardBody.trim()
+        ? {
+            title: scene.exampleCardTitle.trim() || undefined,
+            body: scene.exampleCardBody.trim(),
+            kind: inferCardKind(
+              scene.exampleCardTitle,
+              scene.exampleCardBody,
+            ),
+          }
+        : undefined,
+    }));
+
+  const replacePoster = (blob: Blob) => {
+    setPosterUrl((previous) => {
+      if (previous) {
+        URL.revokeObjectURL(previous);
+      }
+      return URL.createObjectURL(blob);
+    });
+  };
+
+  const renderPosterBlob = async (apiScenes: SceneInput[]) => {
+    const response = await axios.post(
+      "/api/quiz-poster",
+      { scenes: apiScenes },
+      { responseType: "blob" },
+    );
+    return new Blob([response.data], { type: "image/png" });
+  };
+
+  const savePng = (blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "quiz-poster-1080x1920.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadImage = async () => {
+    if (!scriptReady || loading || generating || downloadingImage) {
+      return;
+    }
+    const apiScenes = buildApiScenes();
+    if (!apiScenes.some((scene) => scene.exampleCard?.body?.trim())) {
+      setError("Generate the quiz first so there is a question card to export.");
+      return;
+    }
+    setDownloadingImage(true);
+    setError(null);
+    try {
+      const blob = await renderPosterBlob(apiScenes);
+      replacePoster(blob);
+      savePng(blob);
+      setSuccess("Downloaded 1080×1920 PNG. Same frame as the 9:16 preview.");
+    } catch (err) {
+      setError("Failed to render the quiz image. Try again.");
+      console.error(err);
+    } finally {
+      setDownloadingImage(false);
+    }
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!scriptReady || loading || generating) {
@@ -233,26 +324,7 @@ const VideoCreator: React.FC = () => {
     setError(null);
 
     try {
-      // Convert scenes to the expected API format
-      const apiScenes: SceneInput[] = scenes.map((scene) => ({
-        text: scene.text,
-        searchTerms: scene.searchTerms
-          .split(",")
-          .map((term) => term.trim())
-          .filter((term) => term.length > 0),
-        overlayText: scene.overlayText.trim() || undefined,
-        holdMs: scene.holdMs.trim() ? parseInt(scene.holdMs, 10) : undefined,
-        exampleCard: scene.exampleCardBody.trim()
-          ? {
-              title: scene.exampleCardTitle.trim() || undefined,
-              body: scene.exampleCardBody.trim(),
-              kind: inferCardKind(
-                scene.exampleCardTitle,
-                scene.exampleCardBody,
-              ),
-            }
-          : undefined,
-      }));
+      const apiScenes = buildApiScenes();
 
       const response = await axios.post("/api/short-video", {
         scenes: apiScenes,
@@ -316,7 +388,8 @@ const VideoCreator: React.FC = () => {
           Choose a length and format, then enter a topic — or paste a full
           question with a snippet and A B C D options. Generate fills the
           spoken scenes, cards, and takeaway. You can edit anything
-          before creating the video. Longer videos take more time to render.
+          before creating the video. Or download a still of the quiz frame and
+          edit the video yourself. Longer videos take more time to render.
         </Typography>
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12} sm={7}>
@@ -354,6 +427,12 @@ const VideoCreator: React.FC = () => {
                 if (value) {
                   setScriptReady(false);
                   setExplanation("");
+                  setPosterUrl((previous) => {
+                    if (previous) {
+                      URL.revokeObjectURL(previous);
+                    }
+                    return null;
+                  });
                   setConfig((prev) => ({
                     ...prev,
                     format: value,
@@ -412,13 +491,67 @@ const VideoCreator: React.FC = () => {
       </Paper>
 
       {scriptReady ? (
-        <Box display="flex" justifyContent="center" sx={{ mb: 4 }}>
+        <Box sx={{ mb: 4 }}>
+          {posterUrl ? (
+            <Box sx={{ mb: 3, display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Instagram Reel · 1080 × 1920 · 9:16
+              </Typography>
+              <Box
+                sx={{
+                  width: "100%",
+                  maxWidth: 360,
+                  aspectRatio: "9 / 16",
+                  bgcolor: "#070d16",
+                  borderRadius: 2,
+                  overflow: "hidden",
+                  boxShadow: "0 12px 40px rgba(0,0,0,0.28)",
+                }}
+              >
+                <Box
+                  component="img"
+                  src={posterUrl}
+                  alt="Quiz poster 1080 by 1920"
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                    display: "block",
+                  }}
+                />
+              </Box>
+            </Box>
+          ) : null}
+          <Box
+            display="flex"
+            justifyContent="center"
+            gap={2}
+            flexWrap="wrap"
+          >
+          <Button
+            type="button"
+            variant="outlined"
+            color="primary"
+            size="large"
+            disabled={loading || generating || downloadingImage}
+            onClick={() => handleDownloadImage()}
+            startIcon={
+              downloadingImage ? (
+                <CircularProgress size={18} color="inherit" />
+              ) : (
+                <ImageOutlinedIcon />
+              )
+            }
+            sx={{ minWidth: 200 }}
+          >
+            {downloadingImage ? "Rendering image..." : "Download image"}
+          </Button>
           <Button
             type="button"
             variant="contained"
             color="primary"
             size="large"
-            disabled={loading || generating}
+            disabled={loading || generating || downloadingImage}
             onClick={() => handleSubmit()}
             sx={{ minWidth: 200 }}
           >
@@ -428,6 +561,7 @@ const VideoCreator: React.FC = () => {
               "Create Video"
             )}
           </Button>
+          </Box>
         </Box>
       ) : null}
 

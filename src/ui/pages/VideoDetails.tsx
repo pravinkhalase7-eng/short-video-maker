@@ -215,21 +215,23 @@ const VideoDetails: React.FC = () => {
 
           <Box
             sx={{
-              position: "relative",
-              paddingTop: "56.25%",
+              width: "100%",
+              maxWidth: 405,
+              mx: "auto",
+              aspectRatio: "9 / 16",
               mb: 3,
               backgroundColor: "#000",
+              overflow: "hidden",
             }}
           >
             <video
               controls
               autoPlay
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
                 width: "100%",
                 height: "100%",
+                objectFit: "contain",
+                display: "block",
               }}
               src={`/api/short-video/${videoId}`}
             />
