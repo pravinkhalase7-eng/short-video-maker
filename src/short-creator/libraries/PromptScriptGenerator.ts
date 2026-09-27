@@ -1142,6 +1142,15 @@ function solvePastedQuiz(sheet: NonNullable<ReturnType<typeof parsePastedQuiz>>)
   answer: "A" | "B" | "C" | "D";
   explain: string;
 } {
+  if (sheet.answer && /^[A-D]$/.test(sheet.answer)) {
+    const winning =
+      sheet.options.find((option) => option.letter === sheet.answer)?.text ||
+      "";
+    return {
+      answer: sheet.answer as "A" | "B" | "C" | "D",
+      explain: explainPastedQuiz(sheet, winning),
+    };
+  }
   const ran = sheet.code ? tryRunSnippet(sheet.code) : null;
   if (ran) {
     const matched =

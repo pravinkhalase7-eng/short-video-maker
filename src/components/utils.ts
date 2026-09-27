@@ -271,6 +271,9 @@ export type QuizSheet = {
 };
 
 const QUIZ_OPTION_LINE = /^([A-D])(?:[)\]:\-]|\.)\s+(.+)$/i;
+const QUIZ_ANSWER_LINE =
+  /^(?:answer|ans|correct(?:\s+answer)?)\s*[:\-]\s*([A-D])\b/i;
+const QUIZ_CHECKMARK = /[✅✓✔]/u;
 
 export function parseQuizSheet(card: {
   title?: string;
@@ -281,16 +284,27 @@ export function parseQuizSheet(card: {
   const options: QuizSheetOption[] = [];
   const other: string[] = [];
   const codeLines: string[] = [];
+  let marked: string | null = null;
   for (const raw of lines) {
     const trimmed = raw.trim();
     if (!trimmed) {
       continue;
     }
+    const answerMatch = trimmed.match(QUIZ_ANSWER_LINE);
+    if (answerMatch) {
+      marked = answerMatch[1].toUpperCase();
+      continue;
+    }
     const match = trimmed.match(QUIZ_OPTION_LINE);
     if (match && !looksLikeAttributeAssignment(trimmed)) {
+      let text = match[2].trim();
+      if (QUIZ_CHECKMARK.test(text)) {
+        marked = match[1].toUpperCase();
+        text = text.replace(/\s*[✅✓✔]+\s*/gu, " ").replace(/\s+/g, " ").trim();
+      }
       options.push({
         letter: match[1].toUpperCase(),
-        text: match[2].trim(),
+        text,
       });
       continue;
     }
@@ -313,15 +327,21 @@ export function parseQuizSheet(card: {
   const answerFromField = /^[A-D]$/i.test(card.answer || "")
     ? (card.answer || "").toUpperCase()
     : null;
-  const answer = answerFromTitle || answerFromField || null;
+  const answer = answerFromTitle || answerFromField || marked;
   let heading = card.title?.trim() || "Quiz";
-  let questionParts = other;
+  let questionParts = other.filter(
+    (part) => !QUIZ_ANSWER_LINE.test(part) && !/^answer\b/i.test(part),
+  );
   if (answer) {
     heading = "Quiz";
   }
-  if (other.length >= 2 && other[0].length <= 28 && !/\?$/.test(other[0])) {
-    heading = other[0];
-    questionParts = other.slice(1);
+  if (
+    questionParts.length >= 2 &&
+    questionParts[0].length <= 28 &&
+    !/\?$/.test(questionParts[0])
+  ) {
+    heading = questionParts[0];
+    questionParts = questionParts.slice(1);
   } else if (!answer && card.title?.trim()) {
     heading = card.title.trim();
   }

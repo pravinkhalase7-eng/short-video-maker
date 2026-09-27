@@ -460,6 +460,32 @@ test("pasted programming quizzes keep the snippet and solve it", () => {
   expect(result.config.music).toBe(MusicMoodEnum.funny);
 });
 
+const PASTED_THEORY_QUIZ = `5. Which one is a Python list?
+A) {1, 2, 3}
+B) (1, 2, 3)
+C) [1, 2, 3] ✅
+D) "1, 2, 3"
+Answer: C) [1, 2, 3]`;
+
+test("pasted theory quizzes keep the marked answer, not a default B", () => {
+  const sheet = parsePastedQuiz(PASTED_THEORY_QUIZ);
+  expect(sheet?.question).toMatch(/python list/i);
+  expect(sheet?.question.toLowerCase()).not.toContain("answer:");
+  expect(sheet?.answer).toBe("C");
+  expect(sheet?.options.find((option) => option.letter === "C")?.text).toBe(
+    "[1, 2, 3]",
+  );
+
+  const result = generateLocalScript(PASTED_THEORY_QUIZ, {
+    targetDurationSec: 30,
+    format: "quiz",
+  });
+  expect(result.scenes[1].overlayText).toBe("C");
+  expect(result.scenes[1].text).toMatch(/answer is C/i);
+  expect(result.scenes[0].exampleCard?.body).not.toMatch(/Answer:/);
+  expect(result.scenes[0].exampleCard?.body).not.toMatch(/✅/);
+});
+
 test("parseGeneratedShort pins a pasted quiz instead of the model worksheet", () => {
   const result = parseGeneratedShort(
     JSON.stringify({

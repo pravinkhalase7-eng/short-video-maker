@@ -97,7 +97,10 @@ function quizTitle(
     title: cardTitle,
     body: sheet?.code || sheet?.question || "",
   });
-  const question = (sheet?.question || "What is the output?").replace(/\s+/g, " ").trim();
+  const question = (sheet?.question || "What is the output?")
+    .replace(/\banswer\s*:.*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
   const label = badge && badge !== "QUIZ" ? `${badge} Quiz` : cardTitle || "Coding Quiz";
   return `${label}: ${question}`.slice(0, 90);
 }
