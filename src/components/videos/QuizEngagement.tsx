@@ -1,6 +1,7 @@
 import { AbsoluteFill, Sequence, interpolate, useCurrentFrame } from "remotion";
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
 import { loadFont as loadOutfit } from "@remotion/google-fonts/Outfit";
+import { vnEnter, vnTransform } from "./VnMotion";
 
 const { fontFamily: anton } = loadAnton("normal", {
   weights: ["400"],
@@ -132,16 +133,25 @@ const CommentStrip: React.FC<{ variant: Variant; text: string }> = ({
   text,
 }) => {
   const frame = useCurrentFrame();
-  const opacity = interpolate(frame, [0, 6], [0, 1], {
-    extrapolateRight: "clamp",
+  const [lead, rest] = splitCta(text);
+  const plate = vnEnter(frame, 0, {
+    duration: 11,
+    fromY: 80,
+    fromScale: 0.86,
   });
-  const rise = interpolate(frame, [0, 8], [16, 0], {
-    extrapolateRight: "clamp",
+  const leadMotion = vnEnter(frame, 0, {
+    duration: 10,
+    fromY: -48,
+    fromScale: 1.22,
+  });
+  const restMotion = vnEnter(frame, 6, {
+    duration: 10,
+    fromX: 72,
   });
   const isPortrait = variant === "portrait";
 
   return (
-    <AbsoluteFill style={{ pointerEvents: "none", opacity }}>
+    <AbsoluteFill style={{ pointerEvents: "none", opacity: plate.opacity }}>
       <div
         style={{
           position: "absolute",
@@ -152,7 +162,7 @@ const CommentStrip: React.FC<{ variant: Variant; text: string }> = ({
           justifyContent: "center",
           paddingLeft: 28,
           paddingRight: 28,
-          transform: `translateY(${rise}px)`,
+          transform: vnTransform(plate),
         }}
       >
         <div
@@ -177,10 +187,44 @@ const CommentStrip: React.FC<{ variant: Variant; text: string }> = ({
               letterSpacing: 0.4,
             }}
           >
-            {text}
+            <span
+              style={{
+                display: "inline-block",
+                opacity: leadMotion.opacity,
+                transform: vnTransform(leadMotion),
+              }}
+            >
+              {lead}
+            </span>
+            {rest ? (
+              <>
+                {" "}
+                <span
+                  style={{
+                    display: "inline-block",
+                    opacity: restMotion.opacity,
+                    transform: vnTransform(restMotion),
+                  }}
+                >
+                  {rest}
+                </span>
+              </>
+            ) : null}
           </p>
         </div>
       </div>
     </AbsoluteFill>
   );
 };
+
+function splitCta(text: string): [string, string | null] {
+  if (text.includes(" — ")) {
+    const [lead, rest] = text.split(" — ");
+    return [lead, rest || null];
+  }
+  const mark = text.indexOf("? ");
+  if (mark > 0) {
+    return [text.slice(0, mark + 1), text.slice(mark + 2)];
+  }
+  return [text, null];
+}

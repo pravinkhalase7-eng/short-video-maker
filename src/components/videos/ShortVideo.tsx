@@ -33,9 +33,11 @@ import {
   QuizAnswerSfx,
   QuizOptionTicks,
   SceneSfx,
+  CutWhoosh,
 } from "./SceneSfx";
 import { QuizClockTimer, QuizCountdown } from "./QuizCountdown";
 import { QuizCommentCta } from "./QuizEngagement";
+import { VnFlashWipe, VnZoomPunch } from "./VnMotion";
 
 export const ShortVideo: React.FC<
   z.infer<typeof shortVideoSchema> & { variant: "portrait" | "landscape" }
@@ -174,7 +176,24 @@ export const ShortVideo: React.FC<
             key={`scene-${i}`}
           >
             {worksheet ? (
-              <QuizDeskBackground lang={quizSeriesBadge(scene.exampleCard)} />
+              <VnZoomPunch play={quizAnswer}>
+                <QuizDeskBackground lang={quizSeriesBadge(scene.exampleCard)} />
+                {hasCard && scene.exampleCard ? (
+                  <ExampleCardOverlay
+                    card={scene.exampleCard}
+                    answerLetter={
+                      /^[A-D]$/i.test(scene.overlayText || "")
+                        ? scene.overlayText
+                        : undefined
+                    }
+                    variant={variant}
+                    delayFrames={delayFrames}
+                    sceneFrames={spokenFrames}
+                    optionFrom={optionReveal.from}
+                    optionStep={optionReveal.step}
+                  />
+                ) : null}
+              </VnZoomPunch>
             ) : (
               <SceneBroll
                 clips={clips}
@@ -183,6 +202,18 @@ export const ShortVideo: React.FC<
                 freezeAnswer={quizAnswer}
               />
             )}
+            {quizQuestion ? (
+              <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.42} />
+            ) : null}
+            {quizAnswer ? (
+              <>
+                <VnFlashWipe play />
+                <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.38} />
+              </>
+            ) : null}
+            {useHook && i === 0 ? (
+              <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.36} />
+            ) : null}
             {audioDelayFrames > 0 ? (
               <Sequence from={audioDelayFrames}>
                 <Audio src={audio.url} />
@@ -216,7 +247,7 @@ export const ShortVideo: React.FC<
               play={quizQuestion}
             />
             <QuizAnswerSfx sfx={config.sfx} fps={fps} play={quizAnswer} />
-            {hasCard && scene.exampleCard ? (
+            {worksheet ? null : hasCard && scene.exampleCard ? (
               <ExampleCardOverlay
                 card={scene.exampleCard}
                 answerLetter={

@@ -12,6 +12,23 @@ type SfxUrls = {
   count?: string;
 };
 
+export const CutWhoosh: React.FC<{
+  sfx?: SfxUrls;
+  fps: number;
+  play: boolean;
+  volume?: number;
+}> = ({ sfx, fps, play, volume = 0.28 }) => {
+  if (!play || !sfx?.whoosh) {
+    return null;
+  }
+  const whooshFrames = Math.max(8, Math.round(0.28 * fps));
+  return (
+    <Sequence from={0} durationInFrames={whooshFrames} name="CutWhooshHit">
+      <Audio src={sfx.whoosh} volume={volume} />
+    </Sequence>
+  );
+};
+
 export const SceneSfx: React.FC<{
   sfx?: SfxUrls;
   sceneIndex: number;

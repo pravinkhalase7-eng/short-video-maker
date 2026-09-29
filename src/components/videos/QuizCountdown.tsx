@@ -7,6 +7,7 @@ import {
   useCurrentFrame,
 } from "remotion";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
+import { VN_EASE, vnEnter, vnTransform } from "./VnMotion";
 
 const { fontFamily } = loadFont();
 
@@ -94,9 +95,10 @@ const CountdownDigit: React.FC<{
   length: number;
 }> = ({ value, isPortrait, length }) => {
   const frame = useCurrentFrame();
-  const scale = interpolate(frame, [0, 5, 12], [0.72, 1.08, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
+  const pop = vnEnter(frame, 0, {
+    duration: 10,
+    fromScale: 0.2,
+    fromY: -40,
   });
   const remaining = interpolate(frame, [0, Math.max(1, length)], [1, 0], {
     extrapolateLeft: "clamp",
@@ -105,6 +107,7 @@ const CountdownDigit: React.FC<{
   const dim = interpolate(frame, [0, 6], [0, 0.5], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
+    easing: VN_EASE,
   });
   const size = isPortrait ? 280 : 230;
   const radius = size / 2 - 12;
@@ -130,7 +133,7 @@ const CountdownDigit: React.FC<{
           position: "relative",
           width: size,
           height: size,
-          transform: `scale(${scale})`,
+          transform: vnTransform(pop),
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -201,6 +204,11 @@ const ClockFace: React.FC<{
     [1.06, 1, 1],
     { extrapolateRight: "clamp" },
   );
+  const slide = vnEnter(frame, 0, {
+    duration: 11,
+    fromX: 140,
+    fromScale: 0.7,
+  });
   const size = isPortrait ? 118 : 96;
   const cx = size / 2;
   const cy = size / 2;
@@ -234,7 +242,7 @@ const ClockFace: React.FC<{
           top: "auto",
           bottom: isPortrait ? 360 : 180,
           right: isPortrait ? 28 : 32,
-          transform: `scale(${tickPulse})`,
+          transform: `${vnTransform(slide)} scale(${tickPulse})`,
         }}
       >
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>

@@ -7,6 +7,7 @@ import {
   createCaptionPages,
   isPunchCaptionWord,
 } from "../utils";
+import { VN_EASE, vnEnter, vnTransform } from "./VnMotion";
 
 const { fontFamily } = loadFont();
 
@@ -123,9 +124,10 @@ const KineticCaptionLine: React.FC<{
   quiet,
 }) => {
   const frame = useCurrentFrame();
-  const enter = interpolate(frame, [0, 4], [0.82, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
+  const enter = vnEnter(frame, 0, {
+    duration: 8,
+    fromY: 36,
+    fromScale: 0.86,
   });
 
   return (
@@ -152,7 +154,7 @@ const KineticCaptionLine: React.FC<{
           width: "100%",
           textTransform: "uppercase",
           margin: 0,
-          transform: `scale(${enter})`,
+          transform: vnTransform(enter),
         }}
       >
         {texts.map((text, l) => {
@@ -165,11 +167,12 @@ const KineticCaptionLine: React.FC<{
           const wordScale = active
             ? interpolate(
                 local,
-                [0, 3, 8],
-                punch ? [0.86, 1.28, 1.08] : [0.92, 1.12, 1],
+                [0, 4, 9],
+                punch ? [0.7, 1.32, 1.08] : [0.88, 1.14, 1],
                 {
                   extrapolateLeft: "clamp",
                   extrapolateRight: "clamp",
+                  easing: VN_EASE,
                 },
               )
             : 1;
@@ -183,7 +186,7 @@ const KineticCaptionLine: React.FC<{
                   ...(active
                     ? {
                         backgroundColor: punch
-                          ? "#ff3d6e"
+                          ? "#E53935"
                           : captionBackgroundColor,
                         padding: quiet ? "4px 8px" : "8px 10px",
                         marginLeft: quiet ? "-8px" : "-10px",

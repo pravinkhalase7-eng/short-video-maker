@@ -9,6 +9,7 @@ import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
 import { z } from "zod";
 
 import { getOverlayTiming, shortVideoSchema } from "../utils";
+import { vnEnter, vnTransform } from "./VnMotion";
 
 const { fontFamily } = loadFont();
 
@@ -67,7 +68,7 @@ const HookOverlay: React.FC<{
 }> = ({ text, variant, holdFrames }) => {
   const frame = useCurrentFrame();
   const fadeOutStart = Math.max(10, holdFrames - 8);
-  const opacity = interpolate(
+  const fade = interpolate(
     frame,
     [0, 4, fadeOutStart, holdFrames],
     [0, 1, 1, 0],
@@ -76,10 +77,14 @@ const HookOverlay: React.FC<{
       extrapolateRight: "clamp",
     },
   );
-  const scale = interpolate(frame, [0, 8], [0.94, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
+  const slam = vnEnter(frame, 0, {
+    duration: 12,
+    fromY: -220,
+    fromScale: 1.38,
   });
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const last = words.length > 1 ? words[words.length - 1] : "";
+  const lead = words.length > 1 ? words.slice(0, -1).join(" ") : text;
   const isPortrait = variant === "portrait";
 
   return (
@@ -89,14 +94,14 @@ const HookOverlay: React.FC<{
         justifyContent: "center",
         alignItems: "center",
         padding: isPortrait ? 72 : 64,
-        opacity,
+        opacity: fade,
         pointerEvents: "none",
       }}
     >
       <p
         style={{
           margin: 0,
-          transform: `scale(${scale})`,
+          transform: vnTransform(slam),
           fontFamily,
           fontWeight: 900,
           fontSize: isPortrait ? "6.2em" : "4.8em",
@@ -108,7 +113,23 @@ const HookOverlay: React.FC<{
           textShadow: "0 10px 32px rgba(0,0,0,0.8)",
         }}
       >
-        {text}
+        {lead}
+        {last ? (
+          <>
+            {" "}
+            <span
+              style={{
+                display: "inline-block",
+                backgroundColor: "#E53935",
+                padding: isPortrait ? "4px 18px 10px" : "2px 14px 8px",
+                borderRadius: 8,
+                boxShadow: "0 8px 0 #8e1c1c",
+              }}
+            >
+              {last}
+            </span>
+          </>
+        ) : null}
       </p>
     </AbsoluteFill>
   );
@@ -123,6 +144,11 @@ const EndCardOverlay: React.FC<{
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 8], [0, 1], {
     extrapolateRight: "clamp",
+  });
+  const slam = vnEnter(frame, 0, {
+    duration: 12,
+    fromY: -80,
+    fromScale: 1.18,
   });
   const isPortrait = variant === "portrait";
 
@@ -148,6 +174,7 @@ const EndCardOverlay: React.FC<{
           textTransform: "uppercase",
           WebkitTextStroke: "2px black",
           textShadow: "0 8px 24px rgba(0,0,0,0.7)",
+          transform: vnTransform(slam),
         }}
       >
         {takeaway}

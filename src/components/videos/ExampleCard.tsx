@@ -4,6 +4,7 @@ import { loadFont as loadRowdies } from "@remotion/google-fonts/Rowdies";
 import { loadFont as loadNunito } from "@remotion/google-fonts/Nunito";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
 import { looksLikeCode, parseQuizSheet, quizSeriesHeadline, INSTAGRAM_REEL } from "../utils";
+import { vnEnter, vnTransform } from "./VnMotion";
 
 const { fontFamily } = loadFont();
 const { fontFamily: rowdies } = loadRowdies("normal", {
@@ -65,10 +66,7 @@ export const ExampleCardOverlay: React.FC<{
   const opacity = poster
     ? 1
     : isQuiz
-      ? interpolate(frame, [start, start + 6], [0, 1], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        })
+      ? 1
       : interpolate(
           frame,
           strictlyIncreasing([
@@ -83,7 +81,7 @@ export const ExampleCardOverlay: React.FC<{
             extrapolateRight: "clamp",
           },
         );
-  const rise = poster
+  const rise = poster || isQuiz
     ? 0
     : interpolate(frame, [start, start + 8], [18, 0], {
         extrapolateLeft: "clamp",
@@ -312,6 +310,23 @@ const QuizCard: React.FC<{
     sheet.options.length > 0
       ? sheet.options
       : fallbackQuizOptions(body);
+  const titleMotion = vnEnter(frame, 0, {
+    duration: 11,
+    fromY: -160,
+    fromScale: 1.32,
+    poster,
+  });
+  const codeMotion = vnEnter(frame, 6, {
+    duration: 12,
+    fromY: 90,
+    fromScale: 0.9,
+    poster,
+  });
+  const questionMotion = vnEnter(frame, 10, {
+    duration: 10,
+    fromY: 36,
+    poster,
+  });
 
   return (
     <div
@@ -342,6 +357,8 @@ const QuizCard: React.FC<{
           WebkitTextStroke: isPortrait ? "4px #0b1220" : "3px #0b1220",
           paintOrder: "stroke fill",
           textShadow: "0 6px 0 #071018, 0 12px 18px rgba(0,0,0,0.45)",
+          opacity: titleMotion.opacity,
+          transform: vnTransform(titleMotion),
         }}
       >
         <span style={{ color: "#62B3F0" }}>{headline.lang}</span>
@@ -349,7 +366,14 @@ const QuizCard: React.FC<{
         <span style={{ color: "#F0C419" }}>{headline.rest}</span>
       </p>
       {sheet.code ? (
-        <div style={{ flexShrink: 0, marginBottom: isPortrait ? 36 : 24 }}>
+        <div
+          style={{
+            flexShrink: 0,
+            marginBottom: isPortrait ? 36 : 24,
+            opacity: codeMotion.opacity,
+            transform: vnTransform(codeMotion),
+          }}
+        >
           <MacCodeWindow code={sheet.code} isPortrait={isPortrait} />
         </div>
       ) : null}
@@ -367,6 +391,8 @@ const QuizCard: React.FC<{
             textAlign: "center",
             letterSpacing: -0.3,
             textShadow: "0 3px 0 #0b1220, 0 8px 16px rgba(0,0,0,0.45)",
+            opacity: questionMotion.opacity,
+            transform: vnTransform(questionMotion),
           }}
         >
           {questionText}
@@ -384,18 +410,18 @@ const QuizCard: React.FC<{
           const missed = !poster && Boolean(sheet.answer) && !selected;
           const color = OPTION_COLORS[option.letter] || "#5EC8F0";
           const appearAt = revealAll ? 0 : optionFrom + index * optionStep;
-          const appear = poster
-            ? 0
-            : interpolate(frame, [appearAt, appearAt + 7], [28, 0], {
+          const motion = vnEnter(frame, appearAt, {
+            duration: 10,
+            fromX: 120,
+            fromScale: 0.92,
+            poster,
+          });
+          const punch = selected
+            ? interpolate(frame, [0, 10], [1.12, 1.05], {
                 extrapolateLeft: "clamp",
                 extrapolateRight: "clamp",
-              });
-          const opacity = poster
-            ? 1
-            : interpolate(frame, [appearAt, appearAt + 6], [0, 1], {
-                extrapolateLeft: "clamp",
-                extrapolateRight: "clamp",
-              });
+              })
+            : 1;
           return (
             <div
               key={`${option.letter}-${index}`}
@@ -404,8 +430,8 @@ const QuizCard: React.FC<{
                 alignItems: "baseline",
                 gap: 14,
                 marginBottom: isPortrait ? 28 : 18,
-                opacity: missed ? 0.38 * opacity : opacity,
-                transform: `translateX(${appear}px) scale(${selected ? 1.03 : 1})`,
+                opacity: missed ? 0.38 * motion.opacity : motion.opacity,
+                transform: `${vnTransform(motion)} scale(${punch})`,
               }}
             >
               <span

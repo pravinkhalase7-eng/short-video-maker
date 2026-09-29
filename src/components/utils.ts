@@ -475,8 +475,8 @@ export function quizOptionReveal({
   delayFrames?: number;
 }): { from: number; step: number } {
   return {
-    from: Math.max(0, delayFrames) + Math.max(10, Math.round(0.4 * fps)),
-    step: Math.max(18, Math.round(0.75 * fps)),
+    from: Math.max(0, delayFrames) + Math.max(12, Math.round(0.48 * fps)),
+    step: Math.max(18, Math.round(0.55 * fps)),
   };
 }
 

@@ -10,6 +10,7 @@ import {
 } from "remotion";
 import type { ReactNode } from "react";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
+import { VN_EASE, vnEnter, vnTransform } from "./VnMotion";
 
 const { fontFamily } = loadFont();
 
@@ -125,6 +126,7 @@ export const CutHit: React.FC<{
     {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
+      easing: VN_EASE,
     },
   );
 
@@ -380,9 +382,10 @@ export const PunchOverlay: React.FC<{
       extrapolateRight: "clamp",
     },
   );
-  const scale = interpolate(frame, [start, start + 6], [0.86, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
+  const slam = vnEnter(frame, start, {
+    duration: 11,
+    fromY: -140,
+    fromScale: 1.34,
   });
   const isPortrait = variant === "portrait";
 
@@ -398,7 +401,7 @@ export const PunchOverlay: React.FC<{
       <p
         style={{
           margin: 0,
-          transform: `scale(${scale})`,
+          transform: vnTransform(slam),
           fontFamily,
           fontWeight: 900,
           fontSize:
