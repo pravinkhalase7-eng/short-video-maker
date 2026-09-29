@@ -38,7 +38,7 @@ import {
   SceneSfx,
   CutWhoosh,
 } from "./SceneSfx";
-import { QuizClockTimer, QuizCountdown } from "./QuizCountdown";
+import { QuizClockTimer } from "./QuizCountdown";
 import { QuizCommentCta, QuizTimeUpScreen } from "./QuizEngagement";
 import { VnFlashWipe, VnZoomPunch } from "./VnMotion";
 
@@ -292,24 +292,21 @@ export const ShortVideo: React.FC<
               <>
                 <QuizCommentCta
                   from={countdown.guessFrom}
-                  durationInFrames={countdown.guessDuration}
+                  durationInFrames={
+                    countdown.guessDuration + countdown.durationInFrames
+                  }
                   variant={variant}
                   play={countdown.guessDuration >= 12}
                   text="LOCK YOUR GUESS — COMMENT A · B · C · D"
                 />
                 <QuizClockTimer
                   from={countdown.guessFrom}
-                  durationInFrames={countdown.guessDuration}
+                  durationInFrames={
+                    countdown.guessDuration + countdown.durationInFrames
+                  }
                   fps={fps}
                   variant={variant}
-                />
-                <QuizCountdown
-                  from={countdown.from}
-                  durationInFrames={countdown.durationInFrames}
-                  step={countdown.step}
-                  fps={fps}
                   tickUrl={countBeep}
-                  variant={variant}
                 />
               </>
             ) : null}
@@ -319,7 +316,7 @@ export const ShortVideo: React.FC<
                 durationInFrames={Math.max(18, spokenFrames)}
                 variant={variant}
                 play
-                text="FELL FOR THE TRAP? THE TRICK IS IN THE CAPTIONS"
+                text="CHECK THE CAPTION BELOW"
               />
             ) : null}
             {quizTimeUp ? <QuizTimeUpScreen variant={variant} play /> : null}

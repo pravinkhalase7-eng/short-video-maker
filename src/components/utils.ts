@@ -460,7 +460,7 @@ export function quizTimeUpSpeech(): string {
 }
 
 export function quizRevealSpeech(letter: string): string {
-  return `The answer is ${letter}. Did you fall for the trap? The trick is in the captions. Follow for more.`;
+  return `The answer is ${letter}. Did you fall for the trap? Check the caption below. Follow for more.`;
 }
 
 export function quizSeriesBadge(card?: {

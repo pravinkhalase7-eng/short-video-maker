@@ -437,7 +437,7 @@ test("code quizzes ask for program output, not theory", () => {
   expect(result.scenes[0].text.toLowerCase()).not.toMatch(/editor|snippet/);
   expect(result.scenes[0].text).not.toMatch(/A:\s*1|A\)\s*1/i);
   expect(result.scenes[1].text.toLowerCase()).toMatch(/fall for the trap/);
-  expect(result.scenes[1].text.toLowerCase()).toMatch(/trick is in the captions/);
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/check the caption below/);
   expect(result.scenes[1].text.toLowerCase()).not.toMatch(/hint:/);
   const sheet = parseQuizSheet({
     title: result.scenes[0].exampleCard?.title,
@@ -480,7 +480,7 @@ test("pasted programming quizzes keep the snippet and solve it", () => {
   expect(result.scenes[1].overlayText).toBe("B");
   expect(result.scenes[1].text).toMatch(/answer is B/i);
   expect(result.scenes[1].text.toLowerCase()).toMatch(/fall for the trap/);
-  expect(result.scenes[1].text.toLowerCase()).toMatch(/trick is in the captions/);
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/check the caption below/);
   expect(result.scenes[1].text.toLowerCase()).not.toMatch(/hint:/);
   expect(result.scenes[1].text.toLowerCase()).toMatch(/follow for more/);
   expect(result.config.music).toBe(MusicMoodEnum.funny);
@@ -792,6 +792,9 @@ D) Error`,
   expect(countdown.from).toBe(360);
   expect(countdown.guessFrom).toBeLessThan(countdown.from);
   expect(countdown.guessDuration).toBeGreaterThanOrEqual(240);
+  expect(
+    countdown.guessFrom + countdown.guessDuration + countdown.durationInFrames,
+  ).toBe(450);
   expect(countdown.tickDuration).toBe(0);
   expect(countdown.step).toBe(30);
   expect(countdown.durationInFrames).toBe(90);

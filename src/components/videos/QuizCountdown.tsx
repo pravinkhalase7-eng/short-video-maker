@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import {
   AbsoluteFill,
   Audio,
@@ -7,7 +6,7 @@ import {
   useCurrentFrame,
 } from "remotion";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
-import { VN_EASE, vnEnter, vnTransform } from "./VnMotion";
+import { vnEnter, vnTransform } from "./VnMotion";
 
 const { fontFamily } = loadFont();
 
@@ -16,64 +15,39 @@ export const QuizClockTimer: React.FC<{
   durationInFrames: number;
   fps: number;
   variant: "portrait" | "landscape";
-}> = ({ from, durationInFrames, fps, variant }) => {
+  tickUrl?: string;
+}> = ({ from, durationInFrames, fps, variant, tickUrl }) => {
   if (from < 0 || durationInFrames < 12) {
     return null;
   }
-  return (
-    <Sequence from={from} durationInFrames={durationInFrames} name="QuizClock">
-      <ClockFace
-        fps={fps}
-        durationInFrames={durationInFrames}
-        isPortrait={variant === "portrait"}
-      />
-    </Sequence>
-  );
-};
-
-export const QuizCountdown: React.FC<{
-  from: number;
-  durationInFrames: number;
-  fps: number;
-  step?: number;
-  tickUrl?: string;
-  variant: "portrait" | "landscape";
-}> = ({ from, durationInFrames, fps, step, tickUrl, variant }) => {
-  if (from < 0 || durationInFrames < 18) {
-    return null;
-  }
-
-  const tick = Math.max(Math.round(fps), step || 0);
-  const numbers = [3, 2, 1];
-  const isPortrait = variant === "portrait";
+  const step = Math.max(1, Math.round(fps));
+  const countLast = step * 3;
+  const countStart = Math.max(0, durationInFrames - countLast);
   const beepFrames = Math.max(10, Math.round(0.32 * fps));
-
   return (
     <>
-      {numbers.map((value, index) => {
-        const start = from + index * tick;
-        const length = index === 2 ? durationInFrames - index * tick : tick;
-        if (start >= from + durationInFrames || length <= 0) {
-          return null;
-        }
-        return (
-          <Fragment key={`quiz-count-${value}`}>
-            <Sequence
-              from={start}
-              durationInFrames={length}
-              name={`Countdown${value}`}
-            >
-              <CountdownDigit
-                value={value}
-                isPortrait={isPortrait}
-                length={length}
-              />
-            </Sequence>
-            {tickUrl ? (
+      <Sequence from={from} durationInFrames={durationInFrames} name="QuizClock">
+        <ClockFace
+          fps={fps}
+          durationInFrames={durationInFrames}
+          isPortrait={variant === "portrait"}
+        />
+      </Sequence>
+      {tickUrl
+        ? [0, 1, 2].map((index) => {
+            const start = from + countStart + index * step;
+            if (start >= from + durationInFrames) {
+              return null;
+            }
+            return (
               <Sequence
+                key={`clock-count-${index}`}
                 from={start}
-                durationInFrames={Math.min(length, beepFrames)}
-                name={`CountdownBeep${value}`}
+                durationInFrames={Math.min(
+                  beepFrames,
+                  from + durationInFrames - start,
+                )}
+                name={`ClockCount${3 - index}`}
               >
                 <Audio
                   src={tickUrl}
@@ -81,106 +55,10 @@ export const QuizCountdown: React.FC<{
                   acceptableTimeShiftInSeconds={1}
                 />
               </Sequence>
-            ) : null}
-          </Fragment>
-        );
-      })}
+            );
+          })
+        : null}
     </>
-  );
-};
-
-const CountdownDigit: React.FC<{
-  value: number;
-  isPortrait: boolean;
-  length: number;
-}> = ({ value, isPortrait, length }) => {
-  const frame = useCurrentFrame();
-  const pop = vnEnter(frame, 0, {
-    duration: 10,
-    fromScale: 0.2,
-    fromY: -40,
-  });
-  const remaining = interpolate(frame, [0, Math.max(1, length)], [1, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const dim = interpolate(frame, [0, 6], [0, 0.5], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: VN_EASE,
-  });
-  const size = isPortrait ? 280 : 230;
-  const radius = size / 2 - 12;
-  const circumference = 2 * Math.PI * radius;
-
-  return (
-    <AbsoluteFill
-      style={{
-        justifyContent: "center",
-        alignItems: "center",
-        pointerEvents: "none",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundColor: `rgba(4, 6, 18, ${dim})`,
-        }}
-      />
-      <div
-        style={{
-          position: "relative",
-          width: size,
-          height: size,
-          transform: vnTransform(pop),
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          style={{ position: "absolute", inset: 0 }}
-        >
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="rgba(8,10,24,0.86)"
-            stroke="rgba(255,209,102,0.22)"
-            strokeWidth={isPortrait ? 14 : 12}
-          />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            stroke="#FFD166"
-            strokeWidth={isPortrait ? 14 : 12}
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={circumference * (1 - remaining)}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        </svg>
-        <p
-          style={{
-            margin: 0,
-            fontFamily,
-            fontWeight: 900,
-            fontSize: isPortrait ? "5.6em" : "4.6em",
-            color: "#FFD166",
-            WebkitTextStroke: "4px black",
-            lineHeight: 1,
-          }}
-        >
-          {value}
-        </p>
-      </div>
-    </AbsoluteFill>
   );
 };
 
@@ -192,7 +70,8 @@ const ClockFace: React.FC<{
   const frame = useCurrentFrame();
   const total = durationInFrames / Math.max(1, fps);
   const remaining = Math.max(0, total - frame / Math.max(1, fps));
-  const display = Math.max(1, Math.ceil(remaining));
+  const display = Math.max(0, Math.ceil(remaining));
+  const urgent = remaining <= 3.05;
   const progress = interpolate(frame, [0, Math.max(1, durationInFrames)], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -201,7 +80,7 @@ const ClockFace: React.FC<{
   const tickPulse = interpolate(
     frame % Math.max(1, Math.round(fps)),
     [0, 4, 10],
-    [1.06, 1, 1],
+    [urgent ? 1.14 : 1.06, 1, 1],
     { extrapolateRight: "clamp" },
   );
   const slide = vnEnter(frame, 0, {
@@ -258,7 +137,7 @@ const ClockFace: React.FC<{
             cx={cx}
             cy={cy}
             r={radius}
-            fill="#14182c"
+            fill={urgent ? "#2a1018" : "#14182c"}
             stroke="rgba(255,209,102,0.28)"
             strokeWidth={2.4}
           />
@@ -303,8 +182,8 @@ const ClockFace: React.FC<{
             margin: 0,
             fontFamily,
             fontWeight: 900,
-            fontSize: isPortrait ? 34 : 26,
-            color: "#FFD166",
+            fontSize: isPortrait ? (urgent ? 44 : 34) : urgent ? 34 : 26,
+            color: urgent ? "#FF4D6D" : "#FFD166",
             WebkitTextStroke: "2px black",
             lineHeight: 1,
             textAlign: "center",
