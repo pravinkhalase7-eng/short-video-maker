@@ -1,7 +1,7 @@
 import { Config } from "../../config";
 import { logger } from "../../logger";
 import { spawnSync } from "node:child_process";
-import { looksLikeCode, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation } from "../../components/utils";
+import { looksLikeCode, looksLikeCodeLine, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation } from "../../components/utils";
 import {
   CaptionPositionEnum,
   MusicMoodEnum,
@@ -135,7 +135,9 @@ export function normalizeScriptOptions(
   const duration = options?.targetDurationSec;
   const targetDurationSec =
     duration === 60 || duration === 90 || duration === 120 ? duration : 30;
-  const pastedQuiz = Boolean(prompt && parsePastedQuiz(prompt));
+  const pastedQuiz = Boolean(
+    prompt && parsePastedQuiz(wrapPastedPythonSnippet(prompt)),
+  );
   const format =
     options?.format === "quiz" || pastedQuiz ? "quiz" : "story";
   return { targetDurationSec, format };
@@ -269,24 +271,25 @@ export function generateLocalScript(
   prompt: string,
   options?: ScriptGenerateOptions,
 ): CreateShortInput {
-  const normalized = normalizeScriptOptions(options, prompt);
+  const worksheet = wrapPastedPythonSnippet(prompt.trim());
+  const normalized = normalizeScriptOptions(options, worksheet);
   const limits = scriptLimits(normalized);
-  const pasted = parsePastedQuiz(prompt);
-  const topic = pasted ? pastedQuizTopic(pasted) : cleanTopic(prompt);
+  const pasted = parsePastedQuiz(worksheet);
+  const topic = pasted ? pastedQuizTopic(pasted) : cleanTopic(worksheet);
   const hookText =
     normalized.format === "quiz" ? "" : makeHookText(topic);
   const scenes: SceneInput[] =
     normalized.format === "quiz"
       ? pinTopicSearchTerms(
           buildLocalQuizScenes(
-            prompt,
+            worksheet,
             topic,
             limits.questions,
             limits.holdMs,
             normalized.targetDurationSec,
           ),
           hookText,
-          prompt,
+          worksheet,
         )
       : pinTopicSearchTerms(
           fillMissingExampleCards(
@@ -341,10 +344,11 @@ export class PromptScriptGenerator {
     options?: ScriptGenerateOptions,
   ): Promise<GeneratedShort> {
     const trimmed = prompt.trim();
-    const normalized = normalizeScriptOptions(options, trimmed);
-    if (parsePastedQuiz(trimmed)) {
+    const worksheet = wrapPastedPythonSnippet(trimmed);
+    const normalized = normalizeScriptOptions(options, worksheet);
+    if (parsePastedQuiz(worksheet)) {
       logger.info("Using the pasted quiz worksheet instead of inventing a new question");
-      return { ...generateLocalScript(trimmed, normalized), source: "local" };
+      return { ...generateLocalScript(worksheet, normalized), source: "local" };
     }
     if (this.config.geminiApiKey) {
       try {
@@ -997,17 +1001,22 @@ function quizSheetBody(
   const codeLines = (code || "")
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
-    .filter((line) => line.trim())
-    .slice(0, 6)
+    .slice(0, 8);
+  const trimmedCode = codeLines
+    .join("\n")
+    .replace(/^\n+/, "")
+    .replace(/\n+$/, "")
+    .split("\n")
     .map((line) => line.slice(0, 72));
+  const questionLine = question.replace(/^\d+[).]\s*/, "").trim();
   return [
-    question.replace(/^\d+[).]\s*/, "").trim(),
-    ...codeLines,
+    questionLine,
+    ...trimmedCode,
     ...padQuizOptions(options).map(
       (option, index) => `${letters[index]}) ${option}`.slice(0, 72),
     ),
   ]
-    .filter(Boolean)
+    .filter((line, index) => index > 0 || Boolean(line))
     .join("\n");
 }
 
@@ -1038,6 +1047,80 @@ function quizAnswerBeats(scenes: SceneInput[]): string[] | undefined {
 
 function programmingQuizSpeech(_question?: string): string {
   return "What is the output? Lock your guess. Comment A, B, C, or D.";
+}
+
+export function wrapPastedPythonSnippet(prompt: string): string {
+  const body = prompt.replace(/```(?:\w+)?/g, "").trim();
+  if (parsePastedQuiz(body) || !isPastedCodeSnippet(body)) {
+    return prompt.trim();
+  }
+  return `What is the output?\n${body}\n${inventSnippetChoices(body)}`;
+}
+
+function inventSnippetChoices(code: string): string {
+  const letters = ["A", "B", "C", "D"] as const;
+  const choices = fourQuizChoices(tryRunSnippet(code));
+  return letters
+    .map((letter, index) => `${letter}) ${choices[index]}`)
+    .join("\n");
+}
+
+function fourQuizChoices(
+  ran: { kind: "out" | "error"; text: string } | null,
+): [string, string, string, string] {
+  if (!ran) {
+    return ["0", "2", "3", "NameError"];
+  }
+  if (ran.kind === "error") {
+    const name = ran.text.match(/\b([A-Z][A-Za-z]+Error)\b/)?.[1] || "Error";
+    return [name, "None", "0", "True"];
+  }
+  const lines = ran.text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const got = formatPrintedOutput(lines);
+  const traps = trapsForPrintedOutput(got);
+  return [got, traps[0], traps[1], traps[2]];
+}
+
+function formatPrintedOutput(lines: string[]): string {
+  if (lines.length >= 2 && lines.every((line) => /^(True|False)$/.test(line))) {
+    return lines.join(" ");
+  }
+  if (lines.length === 2) {
+    return `${lines[0]}, ${lines[1]}`;
+  }
+  return lines.join(" ") || "None";
+}
+
+function trapsForPrintedOutput(got: string): [string, string, string] {
+  if (/^(True|False) (True|False)$/.test(got)) {
+    const pool = ["True True", "True False", "False True", "False False"].filter(
+      (option) => option !== got,
+    );
+    return [pool[0], pool[1], "Error"];
+  }
+  if (/^-?\d+$/.test(got)) {
+    const n = Number(got);
+    return [String(n - 1), String(n + 1), "NameError"];
+  }
+  return ["None", "0", "Error"];
+}
+
+function isPastedCodeSnippet(body: string): boolean {
+  if (!body.includes("\n")) {
+    return false;
+  }
+  const lines = body.split(/\r?\n/);
+  const hasIndent = lines.some((line) => /^\s+\S/.test(line));
+  const hasSuite = lines.some((line) =>
+    /^\s*(?:for|while|if|elif|else|def|class|try|except|finally|with)\b.*:\s*(?:#.*)?$/.test(
+      line,
+    ),
+  );
+  const codeLines = lines.filter((line) => looksLikeCodeLine(line)).length;
+  return hasIndent || hasSuite || codeLines >= 2;
 }
 
 function pastedQuizHint(prompt: string, options: NormalizedScriptOptions): string {

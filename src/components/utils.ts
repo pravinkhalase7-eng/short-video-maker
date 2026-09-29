@@ -298,14 +298,19 @@ export function parseQuizSheet(card: {
   const other: string[] = [];
   const codeLines: string[] = [];
   let marked: string | null = null;
+  let inCode = false;
   for (const raw of lines) {
     const trimmed = raw.trim();
     if (!trimmed) {
+      if (inCode) {
+        codeLines.push("");
+      }
       continue;
     }
     const answerMatch = trimmed.match(QUIZ_ANSWER_LINE);
     if (answerMatch) {
       marked = answerMatch[1].toUpperCase();
+      inCode = false;
       continue;
     }
     const match = trimmed.match(QUIZ_OPTION_LINE);
@@ -319,14 +324,17 @@ export function parseQuizSheet(card: {
         letter: match[1].toUpperCase(),
         text,
       });
+      inCode = false;
       continue;
     }
     const cleaned = trimmed.replace(/^\d+[).]\s*/, "").trim();
-    if (looksLikeCodeLine(cleaned)) {
+    if (looksLikeCodeLine(raw) || /^\s+\S/.test(raw)) {
       codeLines.push(raw.replace(/\s+$/, ""));
+      inCode = true;
       continue;
     }
     other.push(cleaned);
+    inCode = false;
   }
 
   const uniqueOptions = new Map<string, QuizSheetOption>();
@@ -377,7 +385,7 @@ export function parseQuizSheet(card: {
   return {
     heading,
     question,
-    code: codeLines.length > 0 ? codeLines.join("\n") : undefined,
+    code: codeLines.length > 0 ? restorePythonIndent(codeLines.join("\n")) : undefined,
     options: Array.from(uniqueOptions.values()).sort((left, right) =>
       left.letter.localeCompare(right.letter),
     ),
@@ -667,20 +675,53 @@ export function getOverlayTiming({
 }
 
 export function looksLikeCode(text: string): boolean {
-  return /[{};=>]|::|->|function\s|\bclass\s|\bpublic\s|\bconst\s|\blet\s|\bvar\s|\bdef\s|\breturn\b|\byield\b|\bprint\s*\(|\bpass\b|\.\w+\(|\.\w+\s*=|<\w+>|Stream</.test(
+  return /[{};=>]|::|->|function\s|\bclass\s|\bpublic\s|\bconst\s|\blet\s|\bvar\s|\bdef\s|\breturn\b|\byield\b|\bprint\s*\(|\bpass\b|\bfor\b|\bwhile\b|\belif\b|\belse\b|\btry\b|\bexcept\b|\bfinally\b|\bwith\b|\bfrom\b|\bimport\b|\bbreak\b|\bcontinue\b|\brange\s*\(|:\s*$|\.\w+\(|\.\w+\s*=|<\w+>|Stream</.test(
     text,
   );
 }
 
 export function looksLikeCodeLine(line: string): boolean {
   const text = line.trim();
-  if (!text || text.length > 80) {
-    return looksLikeCode(text);
+  if (!text) {
+    return false;
   }
   if (/\?$/.test(text)) {
     return false;
   }
+  if (/^\s+\S/.test(line)) {
+    return true;
+  }
+  if (text.length > 80) {
+    return looksLikeCode(text);
+  }
   return looksLikeCode(text) || looksLikeAttributeAssignment(text);
+}
+
+export function restorePythonIndent(code: string): string {
+  const lines = code.split(/\r?\n/);
+  const result: string[] = [];
+  let indentSuite = false;
+  for (const raw of lines) {
+    if (!raw.trim()) {
+      if (result.length > 0) {
+        result.push("");
+      }
+      continue;
+    }
+    const trimmedEnd = raw.replace(/\s+$/, "");
+    const alreadyIndented = /^\s+/.test(trimmedEnd);
+    const line =
+      indentSuite && !alreadyIndented ? `    ${trimmedEnd.trim()}` : trimmedEnd;
+    result.push(line);
+    indentSuite = /:\s*(#.*)?$/.test(line.trim());
+  }
+  while (result[0] === "") {
+    result.shift();
+  }
+  while (result[result.length - 1] === "") {
+    result.pop();
+  }
+  return result.join("\n");
 }
 
 export function quizCaptionExplanation(sheet: QuizSheet): string {
@@ -723,8 +764,11 @@ function explainQuizWhy(code: string, win: string, _sheet: QuizSheet): string {
   if (/\bis\b/.test(code) && /==/.test(code)) {
     return `== compares values, so the list contents match. is compares object identity, so a new [1, 2, 3] literal is not the same object as x. Together that prints ${win}.`;
   }
+  if (/\bis\b/.test(code) && /\b25[67]\b/.test(code)) {
+    return `is checks identity. CPython reuses the same compiled integer object for identical literals in one snippet, so 256 is 256 and 257 is 257 both print True. The -5 to 256 intern cache is the trap, not the output of this code. That's ${win}.`;
+  }
   if (/\bis\b/.test(code)) {
-    return `is compares object identity, not value equality. A new literal on the right is a different object, so the print is ${win}.`;
+    return `is compares object identity, not value equality. In this snippet both names point to the same object, so the print is ${win}.`;
   }
   if (usesSets && /intersection\s*\(|\w+\s*&\s*\w+/.test(code)) {
     return `& is set intersection: it keeps only values that appear in both sets. The only overlap here is what you see in ${win}.`;

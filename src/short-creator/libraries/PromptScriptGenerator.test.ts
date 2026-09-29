@@ -663,7 +663,55 @@ test("quiz cards are detected for countdown and answer freeze", () => {
     body: "What is the output?\ndef func(a=[]):\n    a.append(1)\n    return a\nprint(func())\nprint(func())\nA) [1], [1]\nB) [1], [1, 1]\nC) [1, 1], [1, 1]\nD) Error",
   });
   expect(mutableSheet.question).toBe("What is the output?");
-  expect(mutableSheet.code).toContain("return a");
+  expect(mutableSheet.code).toContain("    a.append(1)");
+  expect(mutableSheet.code).toContain("    return a");
+  const loopSheet = parseQuizSheet({
+    title: "Python Quiz",
+    body: `What is the output?
+for i in range(3):
+    pass
+
+print(i)
+A) 0
+B) 2
+C) 3
+D) NameError`,
+  });
+  expect(loopSheet.code).toContain("for i in range(3):");
+  expect(loopSheet.code).toMatch(/\n    pass\n/);
+  expect(loopSheet.code).toContain("print(i)");
+  const flatLoopSheet = parseQuizSheet({
+    title: "Python Quiz",
+    body: "What is the output?\nfor i in range(3):\npass\nprint(i)\nA) 0\nB) 2\nC) 3\nD) NameError",
+  });
+  expect(flatLoopSheet.code).toMatch(/\n    pass\n/);
+  const snippetOnly = generateLocalScript(
+    `for i in range(3):
+    pass
+
+print(i)`,
+    { format: "quiz", targetDurationSec: 30 },
+  );
+  expect(snippetOnly.scenes[0].exampleCard?.body).toContain("for i in range(3):");
+  expect(snippetOnly.scenes[0].exampleCard?.body).toMatch(/\n    pass\n/);
+  expect(snippetOnly.scenes[0].exampleCard?.body).toContain("print(i)");
+  expect(snippetOnly.scenes[1].overlayText).toBe("A");
+  const internSnippet = generateLocalScript(
+    `a = 256
+b = 256
+
+print(a is b)
+
+a = 257
+b = 257
+
+print(a is b)`,
+    { format: "quiz", targetDurationSec: 30 },
+  );
+  expect(internSnippet.scenes[0].exampleCard?.body).toMatch(/A\) True True/);
+  expect(internSnippet.scenes[0].exampleCard?.body).toMatch(/B\) True False/);
+  expect(internSnippet.scenes[1].overlayText).toBe("A");
+  expect(internSnippet.scenes[1].text).toMatch(/answer is A/i);
   expect(mutableSheet.question.toLowerCase()).not.toContain("return");
   const mutableScript = generateLocalScript(
     `What is the output?
