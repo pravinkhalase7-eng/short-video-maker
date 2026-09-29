@@ -615,6 +615,7 @@ test("quiz videos skip Pexels and use a hardcoded worksheet", () => {
   expect(INSTAGRAM_REEL.height).toBe(1920);
   expect(INSTAGRAM_REEL.safeTop).toBeGreaterThanOrEqual(140);
   expect(INSTAGRAM_REEL.safeBottom).toBeGreaterThanOrEqual(250);
+  expect(INSTAGRAM_REEL.safeLeft).toBeGreaterThanOrEqual(80);
   expect(usesHardcodedWorksheet({ format: "quiz" })).toBe(true);
   expect(usesHardcodedWorksheet({ format: "story" })).toBe(false);
   expect(

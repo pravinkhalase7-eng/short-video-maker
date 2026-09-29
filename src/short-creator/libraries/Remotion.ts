@@ -196,7 +196,7 @@ export class Remotion {
       inputProps: data,
       frame: 0,
       imageFormat,
-      jpegQuality: 72,
+      ...(imageFormat === "jpeg" ? { jpegQuality: 72 } : {}),
       scale: 1,
       timeoutInMilliseconds: 120000,
     });

@@ -106,8 +106,16 @@ export const ExampleCardOverlay: React.FC<{
             ? INSTAGRAM_REEL.safeBottom
             : 280
           : 160,
-        paddingLeft: isPortrait ? INSTAGRAM_REEL.safeX : 80,
-        paddingRight: isPortrait ? INSTAGRAM_REEL.safeX : 80,
+        paddingLeft: isPortrait
+          ? isQuiz
+            ? INSTAGRAM_REEL.safeLeft
+            : INSTAGRAM_REEL.safeX
+          : 80,
+        paddingRight: isPortrait
+          ? isQuiz
+            ? INSTAGRAM_REEL.safeRight
+            : INSTAGRAM_REEL.safeX
+          : 80,
         pointerEvents: "none",
         opacity,
       }}
@@ -400,7 +408,7 @@ const QuizCard: React.FC<{
       ) : null}
       <div
         style={{
-          paddingLeft: isPortrait ? 8 : 8,
+          paddingLeft: isPortrait ? 20 : 12,
           paddingBottom: 0,
           flexShrink: 0,
         }}

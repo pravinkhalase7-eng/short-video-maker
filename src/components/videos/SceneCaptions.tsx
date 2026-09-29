@@ -50,7 +50,7 @@ export const SceneCaptions: React.FC<{
       ? { top: isPortrait ? 160 : 80 }
       : position === "center"
         ? { top: "50%", transform: "translateY(-50%)" }
-        : { bottom: isPortrait ? (quiet ? 96 : 160) : 90 };
+        : { bottom: isPortrait ? (quiet ? 260 : 160) : 90 };
 
   const fontSize = quiet
     ? isPortrait
@@ -92,6 +92,7 @@ export const SceneCaptions: React.FC<{
               fontSize={fontSize}
               captionBackgroundColor={captionBackgroundColor}
               quiet={quiet}
+              isPortrait={isPortrait}
             />
           </Sequence>
         );
@@ -111,6 +112,7 @@ const KineticCaptionLine: React.FC<{
   fontSize: string;
   captionBackgroundColor: string;
   quiet: boolean;
+  isPortrait: boolean;
 }> = ({
   texts,
   sceneIndex,
@@ -122,6 +124,7 @@ const KineticCaptionLine: React.FC<{
   fontSize,
   captionBackgroundColor,
   quiet,
+  isPortrait,
 }) => {
   const frame = useCurrentFrame();
   const enter = vnEnter(frame, 0, {
@@ -136,8 +139,8 @@ const KineticCaptionLine: React.FC<{
         position: "absolute",
         left: 0,
         width: "100%",
-        paddingLeft: 36,
-        paddingRight: 36,
+        paddingLeft: isPortrait ? 56 : 36,
+        paddingRight: isPortrait ? 56 : 36,
         ...captionStyle,
       }}
     >

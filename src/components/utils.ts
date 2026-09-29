@@ -173,8 +173,10 @@ export const INSTAGRAM_REEL = {
   height: 1920,
   aspectRatio: "9 / 16",
   safeTop: 168,
-  safeBottom: 320,
+  safeBottom: 400,
   safeX: 56,
+  safeLeft: 96,
+  safeRight: 72,
 } as const;
 
 export function getOrientationConfig(orientation: OrientationEnum) {

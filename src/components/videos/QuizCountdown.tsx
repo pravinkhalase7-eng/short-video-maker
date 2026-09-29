@@ -209,13 +209,13 @@ const ClockFace: React.FC<{
     fromX: 140,
     fromScale: 0.7,
   });
-  const size = isPortrait ? 118 : 96;
+  const size = isPortrait ? 200 : 156;
   const cx = size / 2;
   const cy = size / 2;
-  const radius = size / 2 - 8;
+  const radius = size / 2 - 12;
   const marks = Array.from({ length: 12 }, (_, index) => {
     const angle = ((index * 30 - 90) * Math.PI) / 180;
-    const inner = index % 3 === 0 ? radius - 10 : radius - 6;
+    const inner = index % 3 === 0 ? radius - 16 : radius - 9;
     return {
       x1: cx + Math.cos(angle) * inner,
       y1: cy + Math.sin(angle) * inner,
@@ -231,8 +231,8 @@ const ClockFace: React.FC<{
       y: cy + Math.sin(rad) * length,
     };
   };
-  const second = hand(secondAngle, radius - 14);
-  const minute = hand(secondAngle * 0.2, radius - 28);
+  const second = hand(secondAngle, radius - 22);
+  const minute = hand(secondAngle * 0.2, radius - 44);
 
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
@@ -240,7 +240,7 @@ const ClockFace: React.FC<{
         style={{
           position: "absolute",
           top: "auto",
-          bottom: isPortrait ? 360 : 180,
+          bottom: isPortrait ? 430 : 200,
           right: isPortrait ? 28 : 32,
           transform: `${vnTransform(slide)} scale(${tickPulse})`,
         }}
@@ -252,7 +252,7 @@ const ClockFace: React.FC<{
             r={radius + 3}
             fill="rgba(8,10,24,0.94)"
             stroke="#FFD166"
-            strokeWidth={isPortrait ? 5 : 4}
+            strokeWidth={isPortrait ? 8 : 6}
           />
           <circle
             cx={cx}
@@ -260,7 +260,7 @@ const ClockFace: React.FC<{
             r={radius}
             fill="#14182c"
             stroke="rgba(255,209,102,0.28)"
-            strokeWidth={1.5}
+            strokeWidth={2.4}
           />
           {marks.map((mark, index) => (
             <line
@@ -270,7 +270,7 @@ const ClockFace: React.FC<{
               x2={mark.x2}
               y2={mark.y2}
               stroke="#FFD166"
-              strokeWidth={mark.wide ? 2.5 : 1.2}
+              strokeWidth={mark.wide ? 4 : 2}
               strokeLinecap="round"
             />
           ))}
@@ -280,7 +280,7 @@ const ClockFace: React.FC<{
             x2={minute.x}
             y2={minute.y}
             stroke="white"
-            strokeWidth={isPortrait ? 3.5 : 3}
+            strokeWidth={isPortrait ? 5.5 : 4.5}
             strokeLinecap="round"
           />
           <line
@@ -289,21 +289,21 @@ const ClockFace: React.FC<{
             x2={second.x}
             y2={second.y}
             stroke="#FF4D6D"
-            strokeWidth={isPortrait ? 2.5 : 2}
+            strokeWidth={isPortrait ? 4 : 3.2}
             strokeLinecap="round"
           />
-          <circle cx={cx} cy={cy} r={4} fill="#FFD166" />
+          <circle cx={cx} cy={cy} r={7} fill="#FFD166" />
         </svg>
         <p
           style={{
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: isPortrait ? -22 : -18,
+            bottom: isPortrait ? -36 : -28,
             margin: 0,
             fontFamily,
             fontWeight: 900,
-            fontSize: isPortrait ? 22 : 18,
+            fontSize: isPortrait ? 34 : 26,
             color: "#FFD166",
             WebkitTextStroke: "2px black",
             lineHeight: 1,
