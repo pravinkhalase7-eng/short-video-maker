@@ -4,6 +4,7 @@ import {
   parseGeneratedShort,
   pinTopicSearchTerms,
   scriptLimits,
+  PromptScriptGenerator,
 } from "./PromptScriptGenerator";
 import {
   MusicMoodEnum,
@@ -460,6 +461,20 @@ test("pasted programming quizzes keep the snippet and solve it", () => {
   expect(result.scenes[1].text.toLowerCase()).not.toMatch(/hint:/);
   expect(result.scenes[1].text.toLowerCase()).toMatch(/follow for more/);
   expect(result.config.music).toBe(MusicMoodEnum.funny);
+});
+
+test("pasted quiz generate returns the worksheet without waiting on Gemini", async () => {
+  const generator = new PromptScriptGenerator({
+    geminiApiKey: "fake-key",
+    geminiModel: "gemini-2.5-flash",
+  } as never);
+  const result = await generator.generate(PASTED_LIST_QUIZ, {
+    targetDurationSec: 30,
+    format: "quiz",
+  });
+  expect(result.source).toBe("local");
+  expect(result.explanation).toBeUndefined();
+  expect(result.scenes[0].exampleCard?.body).toContain("y.append(4)");
 });
 
 const PASTED_THEORY_QUIZ = `5. Which one is a Python list?

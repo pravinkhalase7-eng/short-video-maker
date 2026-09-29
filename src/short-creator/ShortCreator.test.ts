@@ -55,6 +55,12 @@ vi.mock("fs-extra", async () => {
     readFileSync: vi.fn((path) => {
       return memfs.readFileSync(path);
     }),
+    writeJsonSync: vi.fn((filePath, data) => {
+      memfs.writeFileSync(filePath, JSON.stringify(data));
+    }),
+    readJsonSync: vi.fn((filePath) => {
+      return JSON.parse(String(memfs.readFileSync(filePath)));
+    }),
   };
   return {
     ...fsExtra,

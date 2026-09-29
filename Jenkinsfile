@@ -4,44 +4,34 @@ pipeline {
   options {
     timestamps()
     disableConcurrentBuilds()
-    buildDiscarder(logRotator(numToKeepStr: '20'))
     timeout(time: 90, unit: 'MINUTES')
   }
 
   parameters {
-    choice(
-      name: 'DEPLOY_ENV',
-      choices: ['staging', 'production'],
-      description: 'Target environment for deploy'
-    )
-    booleanParam(
-      name: 'SKIP_DEPLOY',
-      defaultValue: false,
-      description: 'Build and test only — skip deploy stage'
-    )
-    booleanParam(
-      name: 'FORCE_RECREATE',
-      defaultValue: false,
-      description: 'Force recreate containers on deploy'
-    )
     booleanParam(
       name: 'RESET_DATA',
       defaultValue: false,
-      description: 'Delete rendered-video volumes. Leave OFF so generated videos survive deploys.'
+      description: 'Wipe temp + video volumes. Default keeps rendered videos.'
     )
-    string(
-      name: 'ENV_CREDENTIAL_ID',
-      defaultValue: 'shortvideo-env-file',
-      description: 'Jenkins Secret file credential ID'
+    booleanParam(
+      name: 'FORCE_RECREATE',
+      defaultValue: true,
+      description: 'Force-recreate the app container after the new image is built.'
+    )
+    booleanParam(
+      name: 'FORCE_NO_CACHE',
+      defaultValue: false,
+      description: 'Rebuild every Docker layer from scratch. Leave off — cache is ~1 min vs ~17 min.'
     )
   }
 
   environment {
-    APP_NAME             = 'shortvideo'
-    APP_IMAGE            = "shortvideo-app:${env.BUILD_NUMBER}"
-    APP_IMAGE_LATEST     = 'shortvideo-app:latest'
-    COMPOSE_PROJECT_NAME = 'shortvideo'
-    DOCKER_BUILDKIT      = '1'
+    COMPOSE_FILE     = 'docker-compose.yml'
+    IMAGE_NAME       = 'shortvideo-app'
+    CONTAINER_NAME   = 'shortvideo-app'
+    PUBLIC_URL       = 'https://shorts.doxstation.com'
+    DIRECT_URL       = 'http://187.127.138.86:3123'
+    APP_HOST_PORT    = '3123'
   }
 
   stages {
@@ -49,15 +39,15 @@ pipeline {
       steps {
         checkout scm
         sh '''
-          echo "Branch: ${GIT_BRANCH:-unknown}"
-          echo "Commit: ${GIT_COMMIT:-unknown}"
-          git rev-parse --short HEAD || true
+          echo "Branch: ${GIT_BRANCH}"
+          echo "Commit: ${GIT_COMMIT}"
+          git rev-parse --short HEAD
           echo "=== Workspace files ==="
           ls -la
-          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml missing"; exit 1; }
-          test -f main-tiny.Dockerfile || { echo "ERROR: main-tiny.Dockerfile missing"; exit 1; }
-          test -f package.json || { echo "ERROR: package.json missing"; exit 1; }
-          test -f scripts/normalize_deploy_env.py || { echo "ERROR: normalize_deploy_env.py missing"; exit 1; }
+          test -f docker-compose.yml
+          test -f main-tiny.Dockerfile
+          test -f package.json
+          test -f scripts/normalize_deploy_env.py
         '''
       }
     }
@@ -75,57 +65,15 @@ pipeline {
     }
 
     stage('Prepare Env') {
-      when {
-        expression { return !params.SKIP_DEPLOY }
-      }
       steps {
         script {
-          def usedEnv = false
-          def credId = params.ENV_CREDENTIAL_ID ?: 'shortvideo-env-file'
-
-          try {
-            withCredentials([file(credentialsId: credId, variable: 'ENV_FILE')]) {
-              sh '''
-                echo "Secret file path bound: $ENV_FILE"
-                test -f "$ENV_FILE" || { echo "ERROR: credential file path missing"; exit 1; }
-                cp -f "$ENV_FILE" .env.deploy
-                echo "Copied ${ENV_CREDENTIAL_ID} → .env.deploy"
-              '''
-              usedEnv = true
-            }
-          } catch (err) {
-            echo "Could not load credential ${credId}: ${err}"
-            echo "Check: Manage Jenkins → Credentials → ID is exactly shortvideo-env-file (Secret file)."
-          }
-
-          if (!usedEnv) {
+          withCredentials([file(credentialsId: 'shortvideo-env-file', variable: 'ENV_FILE')]) {
             sh '''
-              echo "=== Looking for fallback env files ==="
-              ls -la shortvideo.env .env /var/jenkins_home/shortvideo.env /var/jenkins_home/secrets/shortvideo.env 2>/dev/null || true
+              echo "Secret file path bound: ${ENV_FILE}"
+              test -f "${ENV_FILE}"
+              cp -f "${ENV_FILE}" .env.deploy
+              echo "Copied shortvideo-env-file → .env.deploy"
             '''
-            def candidates = [
-              '/var/jenkins_home/secrets/shortvideo.env',
-              '/var/jenkins_home/shortvideo.env',
-              'shortvideo.env',
-              '.env',
-            ]
-            for (p in candidates) {
-              if (fileExists(p)) {
-                sh "cp -f '${p}' .env.deploy"
-                usedEnv = true
-                echo "Using env file: ${p} → .env.deploy"
-                break
-              }
-            }
-          }
-
-          if (!usedEnv) {
-            error('''No env source found.
-Create Jenkins credential:
-  Kind: Secret file
-  ID: shortvideo-env-file
-  Scope: Global
-Then rebuild.''')
           }
 
           sh '''
@@ -134,148 +82,127 @@ Then rebuild.''')
             echo "=== Required keys present ==="
             grep -E '^(PEXELS_API_KEY|APP_HOST_PORT|PORT)=' .env.deploy | sed 's/=.*/=***/'
           '''
-          echo "Prepared .env.deploy for ${params.DEPLOY_ENV}"
-        }
-      }
-    }
 
-    stage('Clean') {
-      steps {
-        script {
-          sh '''
-            set +e
-            echo "=== Stop previous Short Video Maker containers ==="
-            docker compose -f docker-compose.yml down --remove-orphans || true
-            docker rm -f shortvideo-app 2>/dev/null || true
-            docker rmi -f shortvideo-app:latest 2>/dev/null || true
-            echo "=== Remaining shortvideo images ==="
-            docker images | grep shortvideo || echo none
-            echo "=== Docker volumes ==="
-            docker volume ls
-          '''
-          if (params.RESET_DATA) {
-            sh '''
-              set +e
-              echo "RESET_DATA=true — deleting rendered video volumes"
-              docker volume rm -f shortvideo_videos shortvideo_temp 2>/dev/null || true
-              docker volume ls
-            '''
-          } else {
-            echo "Keeping shortvideo_videos so rendered files survive this deploy"
-          }
+          echo "Prepared .env.deploy for staging"
         }
       }
     }
 
     stage('Docker Build') {
       steps {
-        sh '''
+        sh """
           set -e
+          CACHE_FLAG=""
+          if [ "${params.FORCE_NO_CACHE}" = "true" ]; then
+            CACHE_FLAG="--no-cache"
+            echo "FORCE_NO_CACHE is on — rebuilding every layer"
+          else
+            echo "Using Docker layer cache (whisper/apt/pnpm stay cached unless those files change)"
+          fi
           echo "Building Short Video Maker image (tiny whisper + q4 kokoro)..."
-          docker build \
-            --no-cache \
-            -f main-tiny.Dockerfile \
-            -t ${APP_IMAGE} \
-            -t ${APP_IMAGE_LATEST} \
-            .
-          docker images | grep shortvideo | head -n 20 || docker images | head -n 12
-        '''
+          docker build \$CACHE_FLAG -f main-tiny.Dockerfile \\
+            -t ${IMAGE_NAME}:${BUILD_NUMBER} \\
+            -t ${IMAGE_NAME}:latest .
+          docker images | grep shortvideo | head -n 20
+        """
       }
     }
 
     stage('Smoke Test') {
       steps {
-        sh '''
+        sh """
           set -e
-          docker run --rm --entrypoint node ${APP_IMAGE} -e "const fs=require('fs'); fs.accessSync('/app/dist/index.js'); fs.accessSync('/app/dist/ui/index.html'); console.log('smoke_ok')"
-        '''
+          docker run --rm --entrypoint node ${IMAGE_NAME}:${BUILD_NUMBER} -e "const fs=require('fs'); fs.accessSync('/app/dist/index.js'); fs.accessSync('/app/dist/ui/index.html'); console.log('smoke_ok')"
+        """
       }
     }
 
     stage('Deploy') {
-      when {
-        expression { return !params.SKIP_DEPLOY }
-      }
       steps {
-        sh '''
+        sh """
           set -e
           export IMAGE_TAG=${BUILD_NUMBER}
-          export APP_HOST_PORT=${APP_HOST_PORT:-3123}
+          set +x
+          APP_HOST_PORT=\$(awk -F= '/^APP_HOST_PORT=/{print \$2}' .env.deploy | tr -d '\\r')
+          export APP_HOST_PORT="\${APP_HOST_PORT:-3123}"
+          set -x
           cp -f .env.deploy .env
-
-          set -a
-          # shellcheck disable=SC1091
-          . ./.env
-          set +a
-
-          echo "Freeing previous Short Video Maker containers (if any)..."
-          docker compose -f docker-compose.yml down --remove-orphans || true
-          docker rm -f shortvideo-app 2>/dev/null || true
-
+          echo "Swapping to image ${IMAGE_NAME}:${BUILD_NUMBER} on host port \${APP_HOST_PORT}..."
+          docker compose -f ${COMPOSE_FILE} down --remove-orphans || true
+          docker rm -f ${CONTAINER_NAME} || true
+          if [ "${params.RESET_DATA}" = "true" ]; then
+            echo "RESET_DATA: wiping shortvideo_temp and shortvideo_videos"
+            docker volume rm -f shortvideo_temp shortvideo_videos || true
+          else
+            echo "Keeping shortvideo_videos so rendered files survive this deploy"
+          fi
+          UP_FLAGS="-d --no-build"
+          if [ "${params.FORCE_RECREATE}" = "true" ]; then
+            UP_FLAGS="\$UP_FLAGS --force-recreate"
+          fi
           echo "Starting app from the image just built..."
-          docker compose -f docker-compose.yml up -d --no-build --force-recreate app
-
+          docker compose -f ${COMPOSE_FILE} up \$UP_FLAGS app
           echo "Waiting for health via docker exec..."
           i=1
-          while [ "$i" -le 60 ]; do
-            if docker exec shortvideo-app curl -fsS http://127.0.0.1:3123/health >/tmp/shortvideo_health.json 2>/dev/null; then
+          while [ \$i -le 60 ]; do
+            if docker exec ${CONTAINER_NAME} curl -fsS http://127.0.0.1:3123/health > /tmp/shortvideo_health.json 2>/dev/null; then
               echo "App healthy"
               cat /tmp/shortvideo_health.json
               echo
-              docker compose -f docker-compose.yml ps
+              docker compose -f ${COMPOSE_FILE} ps
               exit 0
             fi
-            STATUS="$(docker inspect -f '{{.State.Health.Status}}' shortvideo-app 2>/dev/null || echo unknown)"
-            echo "attempt ${i}: health=${STATUS}"
-            i=$((i + 1))
+            STATUS=\$(docker inspect -f '{{.State.Health.Status}}' ${CONTAINER_NAME} 2>/dev/null || echo unknown)
+            echo "attempt \$i: health=\$STATUS"
+            i=\$((i + 1))
             sleep 5
           done
-          echo "Health check failed"
-          docker compose -f docker-compose.yml ps || true
-          docker compose -f docker-compose.yml logs --tail=120
+          echo "App failed to become healthy"
+          docker compose -f ${COMPOSE_FILE} ps || true
+          docker logs ${CONTAINER_NAME} --tail=80 || true
           exit 1
-        '''
+        """
       }
     }
 
     stage('Post-Deploy Check') {
-      when {
-        expression { return !params.SKIP_DEPLOY }
-      }
       steps {
-        sh '''
+        sh """
           set -e
           echo "=== Container status ==="
-          docker compose -f docker-compose.yml ps || true
+          docker compose -f ${COMPOSE_FILE} ps
           echo "=== Health (docker exec) ==="
-          docker exec shortvideo-app curl -fsS http://127.0.0.1:3123/health
+          docker exec ${CONTAINER_NAME} curl -fsS http://127.0.0.1:3123/health
           echo
           echo "=== UI responds ==="
-          docker exec shortvideo-app curl -fsS -o /tmp/shortvideo_ui.html -w "http:%{http_code}\\n" http://127.0.0.1:3123/ || true
-          if [ -s /tmp/shortvideo_ui.html ]; then
-            echo "ui_ok bytes=$(wc -c </tmp/shortvideo_ui.html)"
+          docker exec ${CONTAINER_NAME} curl -fsS -o /tmp/shortvideo_ui.html -w 'http:%{http_code}\\n' http://127.0.0.1:3123/
+          if docker exec ${CONTAINER_NAME} test -s /tmp/shortvideo_ui.html; then
+            echo "UI HTML fetched"
           else
             echo "WARN: could not fetch UI HTML from inside container"
-            docker logs shortvideo-app --tail=40 || true
           fi
-        '''
+          docker logs ${CONTAINER_NAME} --tail=40 || true
+        """
       }
     }
   }
 
   post {
-    success {
-      echo "Short Video Maker ${params.DEPLOY_ENV} build #${env.BUILD_NUMBER} succeeded"
-      echo "UI/API: https://shorts.doxstation.com"
-      echo "Direct: http://187.127.138.86:3123"
-      echo "Health: https://shorts.doxstation.com/health"
-    }
-    failure {
-      echo "Short Video Maker build #${env.BUILD_NUMBER} failed — check stage logs"
-      sh 'docker compose -f docker-compose.yml logs --tail=120 || true'
-    }
     always {
       sh 'rm -f .env.deploy.bak || true'
+    }
+    success {
+      echo "Short Video Maker staging build #${BUILD_NUMBER} succeeded"
+      echo "UI/API: ${PUBLIC_URL}"
+      echo "Direct: ${DIRECT_URL}"
+      echo "Health: ${PUBLIC_URL}/health"
+    }
+    failure {
+      echo "Short Video Maker staging build #${BUILD_NUMBER} failed"
+      sh """
+        docker compose -f ${COMPOSE_FILE} ps || true
+        docker logs ${CONTAINER_NAME} --tail=80 || true
+      """
     }
   }
 }

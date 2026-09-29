@@ -45,6 +45,8 @@ export class ShortCreator {
     prompt?: string;
     explanation?: string;
   }[] = [];
+  private busy = false;
+  private progressById = new Map<string, number>();
   private stockMedia: StockMedia;
   constructor(
     private config: Config,
@@ -72,13 +74,16 @@ export class ShortCreator {
     return "failed";
   }
 
+  public progress(id: string): number | undefined {
+    return this.progressById.get(id);
+  }
+
   public async addToQueue(
     sceneInput: SceneInput[],
     config: RenderConfig,
     prompt?: string,
     explanation?: string,
   ): Promise<string> {
-    // todo add mutex lock
     const id = cuid();
     this.queue.push({
       sceneInput,
@@ -87,39 +92,51 @@ export class ShortCreator {
       prompt,
       explanation,
     });
-    let caption = explanation?.trim();
-    if (!caption && config.format === "quiz") {
-      caption = await this.requireGeminiExplanation(
-        sceneInput,
-        config,
-        prompt,
-      );
-    }
+    const caption = explanation?.trim();
     this.saveVideoMeta(id, sceneInput, config, prompt, caption);
-    if (this.queue.length === 1) {
-      this.processQueue();
+    if (config.format === "quiz" && !caption) {
+      void this.fillGeminiCaption(id, sceneInput, config, prompt);
     }
+    void this.processQueue();
     return id;
   }
 
+  private async fillGeminiCaption(
+    videoId: string,
+    scenes: SceneInput[],
+    config: RenderConfig,
+    prompt?: string,
+  ): Promise<void> {
+    try {
+      const caption = await this.requireGeminiExplanation(
+        scenes,
+        config,
+        prompt,
+      );
+      this.saveVideoMeta(videoId, scenes, config, prompt, caption);
+    } catch (error: unknown) {
+      logger.error(error, "Gemini quiz explanation failed; keeping fallback caption");
+    }
+  }
+
   private async processQueue(): Promise<void> {
-    // todo add a semaphore
-    if (this.queue.length === 0) {
+    if (this.busy || this.queue.length === 0) {
       return;
     }
+    this.busy = true;
     const { sceneInput, config, id } = this.queue[0];
-    logger.debug(
-      { sceneInput, config, id },
-      "Processing video item in the queue",
-    );
+    this.progressById.set(id, 0);
+    logger.info({ id, format: config.format }, "Processing video item in the queue");
     try {
       await this.createShort(id, sceneInput, config);
-      logger.debug({ id }, "Video created successfully");
+      logger.info({ id }, "Video created successfully");
     } catch (error: unknown) {
       logger.error(error, "Error creating video");
     } finally {
+      this.progressById.delete(id);
       this.queue.shift();
-      this.processQueue();
+      this.busy = false;
+      void this.processQueue();
     }
   }
 
@@ -151,6 +168,11 @@ export class ShortCreator {
       tempMp3Path: string;
     }[] = [];
 
+    logger.info(
+      { videoId, scenes: inputScenes.length, format: config.format },
+      "Generating speech",
+    );
+    const speechStarted = Date.now();
     let index = 0;
     for (const scene of inputScenes) {
       const audio = await this.kokoro.generate(
@@ -196,6 +218,11 @@ export class ShortCreator {
       });
       index++;
     }
+    this.progressById.set(videoId, 5);
+    logger.info(
+      { videoId, ms: Date.now() - speechStarted },
+      "Speech ready",
+    );
 
     const hookMs = config.hookText?.trim()
       ? config.hookDurationMs ?? 2200
@@ -274,8 +301,16 @@ export class ShortCreator {
     }
 
     const selectedMusic = this.findMusic(totalDuration, config.music);
-    logger.debug({ selectedMusic }, "Selected music for the video");
+    logger.info(
+      {
+        videoId,
+        selectedMusic: selectedMusic.file,
+        durationSec: Math.round(totalDuration),
+      },
+      "Selected music for the video",
+    );
 
+    const renderStarted = Date.now();
     await this.remotion.render(
       {
         music: selectedMusic,
@@ -324,6 +359,13 @@ export class ShortCreator {
       },
       videoId,
       orientation,
+      (progress) => {
+        this.progressById.set(videoId, Math.max(5, Math.floor(progress * 100)));
+      },
+    );
+    logger.info(
+      { videoId, ms: Date.now() - renderStarted },
+      "Remotion render finished",
     );
 
     for (const file of tempFiles) {

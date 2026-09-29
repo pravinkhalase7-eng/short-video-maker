@@ -35,8 +35,13 @@ export class Remotion {
     data: z.infer<typeof shortVideoSchema>,
     id: string,
     orientation: OrientationEnum,
+    onProgress?: (progress: number) => void,
   ) {
     const { component } = getOrientationConfig(orientation);
+    const isQuiz = data.config.format === "quiz";
+    const concurrency = isQuiz
+      ? Math.max(2, this.config.concurrency ?? 1)
+      : this.config.concurrency ?? 1;
 
     const composition = await selectComposition({
       serveUrl: this.bundled,
@@ -44,7 +49,10 @@ export class Remotion {
       inputProps: data,
     });
 
-    logger.debug({ component, videoID: id }, "Rendering video with Remotion");
+    logger.info(
+      { component, videoID: id, concurrency, isQuiz },
+      "Rendering video with Remotion",
+    );
 
     const outputLocation = path.join(this.config.videosDirPath, `${id}.mp4`);
     const maxAttempts = 2;
@@ -52,6 +60,7 @@ export class Remotion {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
+        let lastLogged = -1;
         await renderMedia({
           codec: "h264",
           composition,
@@ -59,15 +68,26 @@ export class Remotion {
           outputLocation,
           inputProps: data,
           onProgress: ({ progress }) => {
-            logger.debug(
-              `Rendering ${id} ${Math.floor(progress * 100)}% complete`,
-            );
+            onProgress?.(progress);
+            const pct = Math.floor(progress * 100);
+            if (pct >= lastLogged + 10) {
+              lastLogged = pct;
+              logger.info(
+                { videoID: id, progress: pct },
+                "Remotion render progress",
+              );
+            }
           },
-          concurrency: this.config.concurrency ?? 1,
-          offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes,
+          concurrency,
+          ...(isQuiz
+            ? {}
+            : {
+                offthreadVideoCacheSizeInBytes:
+                  this.config.videoCacheSizeInBytes,
+              }),
           timeoutInMilliseconds: 180000,
           x264Preset: this.config.runningInDocker ? "ultrafast" : "veryfast",
-          jpegQuality: 60,
+          jpegQuality: isQuiz ? 55 : 60,
         });
         lastError = undefined;
         break;

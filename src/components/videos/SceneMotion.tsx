@@ -142,10 +142,6 @@ export const CutHit: React.FC<{
 };
 
 export const QuizDeskBackground: React.FC<{ lang?: string }> = ({ lang }) => {
-  const frame = useCurrentFrame();
-  const drift = interpolate(frame, [0, 240], [0, 1], {
-    extrapolateRight: "extend",
-  });
   const tint =
     lang === "JAVA"
       ? "#f89820"
@@ -187,7 +183,7 @@ export const QuizDeskBackground: React.FC<{ lang?: string }> = ({ lang }) => {
             left: mark.left,
             right: mark.right,
             opacity: mark.opacity,
-            transform: `translateY(${Math.sin((drift + index) * 4) * 10}px) rotate(${mark.rotate}deg)`,
+            transform: `rotate(${mark.rotate}deg)`,
           }}
         >
           <LangMark lang={lang} size={mark.size} accent={tint} />

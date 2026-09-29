@@ -147,10 +147,11 @@ export async function llmQuizExplanation(
 
 async function completeGemini(config: Config, prompt: string): Promise<string | null> {
   const models = [
-    config.geminiModel,
-    "gemini-2.5-flash",
     "gemini-2.0-flash",
-  ].filter((model, index, all) => Boolean(model) && all.indexOf(model) === index);
+    config.geminiModel,
+  ]
+    .filter((model, index, all) => Boolean(model) && all.indexOf(model) === index)
+    .slice(0, 2);
 
   let lastError: unknown;
   for (const model of models) {
@@ -160,7 +161,7 @@ async function completeGemini(config: Config, prompt: string): Promise<string | 
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: { temperature: 0.3 },

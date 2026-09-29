@@ -205,8 +205,10 @@ export class APIRouter {
         }
         const status = this.shortCreator.status(videoId);
         const meta = this.shortCreator.getVideoMeta(videoId);
+        const progress = this.shortCreator.progress(videoId);
         res.status(200).json({
           status,
+          ...(progress !== undefined ? { progress } : {}),
           ...(meta ?? {}),
         });
       },

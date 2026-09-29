@@ -57,7 +57,6 @@ RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 FROM base AS prod-deps
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml /app/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
-RUN pnpm install --prefer-offline --no-cache --prod
 
 FROM prod-deps AS build
 COPY tsconfig.json /app

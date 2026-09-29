@@ -19,6 +19,7 @@ import { VideoStatus } from "../../types/shorts";
 
 type VideoDetailsData = {
   status: VideoStatus;
+  progress?: number;
   prompt?: string;
   title?: string;
   caption?: string;
@@ -71,7 +72,7 @@ const VideoDetails: React.FC = () => {
     checkVideoStatus();
     intervalRef.current = setInterval(() => {
       checkVideoStatus();
-    }, 5000);
+    }, 2000);
     return () => {
       isMounted.current = false;
       if (intervalRef.current) {
@@ -192,12 +193,15 @@ const VideoDetails: React.FC = () => {
     }
 
     if (status === "processing") {
+      const progress = details?.progress;
       return (
         <Box textAlign="center" py={4}>
           <CircularProgress size={60} sx={{ mb: 2 }} />
           <Typography variant="h6">Your video is being created...</Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-            This may take a few minutes. Please wait.
+            {progress && progress >= 5
+              ? `Rendering ${progress}% — quiz Reels are 1080×1920, so this can take a few minutes.`
+              : "Writing voiceover, then rendering the 1080×1920 Reel."}
           </Typography>
           {renderPostPack()}
         </Box>

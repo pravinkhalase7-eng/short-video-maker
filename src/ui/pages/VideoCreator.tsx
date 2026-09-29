@@ -213,12 +213,11 @@ const VideoCreator: React.FC = () => {
       setScriptReady(true);
       setExplanation(generated.explanation || "");
       if ((generated.config.format ?? "story") === "quiz") {
-        try {
-          const blob = await renderPosterBlob(generated.scenes);
-          replacePoster(blob);
-        } catch (posterError) {
-          console.error(posterError);
-        }
+        void renderPosterBlob(generated.scenes)
+          .then(replacePoster)
+          .catch((posterError) => {
+            console.error(posterError);
+          });
       }
       setSuccess(
         generated.source === "local"
