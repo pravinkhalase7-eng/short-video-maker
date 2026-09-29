@@ -43,6 +43,38 @@ test("quiz posts get a title, explanation, and five hashtags", () => {
   expect(post.instagramText).not.toMatch(/\n{3,}/);
 });
 
+test("timeup quiz posts keep the caption spoiler-free", () => {
+  const post = buildInstagramPost({
+    id: "timeup",
+    prompt: "What is the output?\nprint(1)\nA) 1\nB) 2",
+    scenes: [
+      {
+        text: "What is the output? Lock your guess.",
+        searchTerms: ["python"],
+        exampleCard: {
+          kind: "quiz",
+          title: "Python Quiz",
+          body: "What is the output?\nprint(1)\nA) 1\nB) 2\nC) 0\nD) Error",
+        },
+      },
+      {
+        text: "Time's up. Comment A, B, C, or D. Follow for more.",
+        searchTerms: ["python"],
+        overlayText: "TIMEUP",
+        exampleCard: {
+          kind: "quiz",
+          title: "Python Quiz",
+          body: "What is the output?\nprint(1)\nA) 1\nB) 2\nC) 0\nD) Error",
+        },
+      },
+    ],
+    config: { format: "quiz", quizEnding: "timeup" },
+  });
+
+  expect(post.caption.toLowerCase()).toMatch(/time's up/);
+  expect(post.instagramText).not.toMatch(/answer is [A-D]/i);
+});
+
 test("set intersection quizzes explain the operator and the traps", () => {
   const post = buildInstagramPost({
     id: "set-and",

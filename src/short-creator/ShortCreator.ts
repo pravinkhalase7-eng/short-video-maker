@@ -23,6 +23,7 @@ import {
   usesHardcodedWorksheet,
 } from "../components/utils";
 import { buildInstagramPost, type VideoPostMeta } from "./libraries/instagramPost";
+import { applyQuizEnding } from "./libraries/PromptScriptGenerator";
 import {
   llmQuizExplanation,
   quizFactsFromScenes,
@@ -84,18 +85,19 @@ export class ShortCreator {
     prompt?: string,
     explanation?: string,
   ): Promise<string> {
+    const scenes = applyQuizEnding(sceneInput, config.quizEnding);
     const id = cuid();
     this.queue.push({
-      sceneInput,
+      sceneInput: scenes,
       config,
       id,
       prompt,
       explanation,
     });
     const caption = explanation?.trim();
-    this.saveVideoMeta(id, sceneInput, config, prompt, caption);
+    this.saveVideoMeta(id, scenes, config, prompt, caption);
     if (config.format === "quiz" && !caption) {
-      void this.fillGeminiCaption(id, sceneInput, config, prompt);
+      void this.fillGeminiCaption(id, scenes, config, prompt);
     }
     void this.processQueue();
     return id;
@@ -326,6 +328,7 @@ export class ShortCreator {
           endCardText: config.endCardText,
           endCardCta: config.endCardCta,
           format: config.format,
+          quizEnding: config.quizEnding,
           endCardBeats: (() => {
             const beats = (config.endCardBeats || [])
               .map((beat) => beat.trim())

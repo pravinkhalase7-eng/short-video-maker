@@ -83,6 +83,7 @@ export class APIRouter {
             {
               targetDurationSec: parsed.data.targetDurationSec,
               format: parsed.data.format,
+              quizEnding: parsed.data.quizEnding,
             },
           );
           res.status(200).json(generated);

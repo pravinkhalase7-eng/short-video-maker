@@ -57,15 +57,18 @@ export function buildInstagramPost({
       })
     : storyExplanation(scenes);
   const explanation = providedExplanation?.replace(/\s+/g, " ").trim() || generated;
+  const hideAnswer = config?.quizEnding === "timeup";
   const caption = isQuiz
-    ? "Comment A, B, C, or D before you scroll. Follow for more traps."
+    ? hideAnswer
+      ? "Time's up. Comment A, B, C, or D. Follow for more."
+      : "Comment A, B, C, or D before you scroll. Follow for more traps."
     : storyCaption(promptText, scenes[0]?.text, config?.endCardCta);
   const hashtags = fiveHashtags(promptText, sheet?.code || quizCard?.body || "", isQuiz);
   const instagramText = compactInstagramText([
     title,
     caption,
     ".\n.\n.",
-    explanation,
+    hideAnswer ? "" : explanation,
     hashtags.join(" "),
   ]);
 

@@ -35,7 +35,9 @@ import {
   TARGET_DURATION_SECONDS,
   TargetDurationSec,
   VideoFormat,
+  QuizEnding,
 } from "../../types/shorts";
+import { quizRevealSpeech, quizTimeUpSpeech } from "../../components/utils";
 
 interface SceneFormData {
   text: string;
@@ -55,6 +57,37 @@ const emptyScene = (): SceneFormData => ({
   holdMs: "",
 });
 
+function withQuizEndingScenes(
+  scenes: SceneFormData[],
+  ending: QuizEnding,
+  letter: string,
+): SceneFormData[] {
+  if (scenes.length < 2) {
+    return scenes;
+  }
+  return scenes.map((scene, index) => {
+    if (index !== 1) {
+      return scene;
+    }
+    if (ending === "timeup") {
+      return {
+        ...scene,
+        overlayText: "TIMEUP",
+        text: quizTimeUpSpeech(),
+      };
+    }
+    const reveal = /^[A-D]$/i.test(letter) ? letter.toUpperCase() : "";
+    if (!reveal) {
+      return scene;
+    }
+    return {
+      ...scene,
+      overlayText: reveal,
+      text: quizRevealSpeech(reveal),
+    };
+  });
+}
+
 const VideoCreator: React.FC = () => {
   const navigate = useNavigate();
   const [scenes, setScenes] = useState<SceneFormData[]>([emptyScene()]);
@@ -72,6 +105,7 @@ const VideoCreator: React.FC = () => {
     endCardCta: "Follow for more",
     targetDurationSec: 30,
     format: "story",
+    quizEnding: "reveal",
   });
 
   const [loading, setLoading] = useState(false);
@@ -83,6 +117,7 @@ const VideoCreator: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
+  const [quizRevealLetter, setQuizRevealLetter] = useState("");
   const [voices, setVoices] = useState<VoiceEnum[]>([]);
   const [musicTags, setMusicTags] = useState<MusicMoodEnum[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -167,6 +202,10 @@ const VideoCreator: React.FC = () => {
         prompt: prompt.trim(),
         targetDurationSec: config.targetDurationSec ?? 30,
         format: pastedQuiz ? "quiz" : config.format ?? "story",
+        quizEnding:
+          (pastedQuiz ? "quiz" : config.format ?? "story") === "quiz"
+            ? config.quizEnding ?? "reveal"
+            : "reveal",
       });
       const generated = response.data as {
         scenes: SceneInput[];
@@ -209,7 +248,15 @@ const VideoCreator: React.FC = () => {
         targetDurationSec:
           generated.config.targetDurationSec ?? config.targetDurationSec ?? 30,
         format: generated.config.format ?? config.format ?? "story",
+        quizEnding:
+          generated.config.quizEnding ?? config.quizEnding ?? "reveal",
       });
+      const revealLetter =
+        generated.scenes
+          .map((scene) => scene.overlayText || scene.exampleCard?.title || "")
+          .find((value) => /^[A-D]$/i.test(value))
+          ?.toUpperCase() || "";
+      setQuizRevealLetter(revealLetter);
       setScriptReady(true);
       setExplanation(generated.explanation || "");
       if ((generated.config.format ?? "story") === "quiz") {
@@ -446,6 +493,31 @@ const VideoCreator: React.FC = () => {
               <ToggleButton value="quiz">Quiz</ToggleButton>
             </ToggleButtonGroup>
           </Grid>
+          {config.format === "quiz" ? (
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                After the timer
+              </Typography>
+              <ToggleButtonGroup
+                exclusive
+                fullWidth
+                color="primary"
+                value={config.quizEnding ?? "reveal"}
+                onChange={(_event, value: QuizEnding | null) => {
+                  if (!value) {
+                    return;
+                  }
+                  setConfig((prev) => ({ ...prev, quizEnding: value }));
+                  setScenes((prev) =>
+                    withQuizEndingScenes(prev, value, quizRevealLetter),
+                  );
+                }}
+              >
+                <ToggleButton value="reveal">Reveal answer</ToggleButton>
+                <ToggleButton value="timeup">Time's up</ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
+          ) : null}
         </Grid>
         <TextField
           fullWidth

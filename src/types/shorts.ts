@@ -31,6 +31,8 @@ export const targetDurationSecSchema = z.union([
 ]);
 export const videoFormatSchema = z.enum(["story", "quiz"]);
 export type VideoFormat = z.infer<typeof videoFormatSchema>;
+export const quizEndingSchema = z.enum(["reveal", "timeup"]);
+export type QuizEnding = z.infer<typeof quizEndingSchema>;
 
 export type ExampleCard = {
   title?: string;
@@ -210,6 +212,11 @@ export const renderConfig = z.object({
     .describe(
       "story is a narrated short; quiz is one multiple-choice question, a think pause, then the answer",
     ),
+  quizEnding: quizEndingSchema
+    .optional()
+    .describe(
+      "reveal shows the winning letter after the timer; timeup shows TIME'S UP and asks for a comment instead",
+    ),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 
@@ -267,6 +274,7 @@ export const generateShortInput = z.object({
     .describe("A description of the short video the user wants to make"),
   targetDurationSec: targetDurationSecSchema.default(30),
   format: videoFormatSchema.default("story"),
+  quizEnding: quizEndingSchema.default("reveal"),
 });
 export type GenerateShortInput = z.infer<typeof generateShortInput>;
 

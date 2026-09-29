@@ -49,6 +49,7 @@ export const shortVideoSchema = z.object({
     endCardCta: z.string().optional(),
     endCardBeats: z.array(z.string()).max(3).optional(),
     format: z.enum(["story", "quiz"]).optional(),
+    quizEnding: z.enum(["reveal", "timeup"]).optional(),
     quizHoldPoster: z.string().optional(),
     quizAnswerPoster: z.string().optional(),
     sfx: z
@@ -412,7 +413,7 @@ export function parsePastedQuiz(text: string): QuizSheet | null {
   return sheet;
 }
 
-export function isQuizAnswerCard(
+export function isQuizTimeUpCard(
   card?: {
     title?: string;
     kind?: string;
@@ -420,6 +421,19 @@ export function isQuizAnswerCard(
   overlayText?: string,
 ): boolean {
   if (card?.kind !== "quiz") {
+    return false;
+  }
+  return /time\s*['’]?s?\s*up|^TIMEUP$/i.test(overlayText || "");
+}
+
+export function isQuizAnswerCard(
+  card?: {
+    title?: string;
+    kind?: string;
+  },
+  overlayText?: string,
+): boolean {
+  if (card?.kind !== "quiz" || isQuizTimeUpCard(card, overlayText)) {
     return false;
   }
   return (
@@ -434,7 +448,19 @@ export function isQuizQuestionCard(
   },
   overlayText?: string,
 ): boolean {
-  return card?.kind === "quiz" && !isQuizAnswerCard(card, overlayText);
+  return (
+    card?.kind === "quiz" &&
+    !isQuizAnswerCard(card, overlayText) &&
+    !isQuizTimeUpCard(card, overlayText)
+  );
+}
+
+export function quizTimeUpSpeech(): string {
+  return "Time's up. Comment A, B, C, or D. Follow for more.";
+}
+
+export function quizRevealSpeech(letter: string): string {
+  return `The answer is ${letter}. Did you fall for the trap? The trick is in the captions. Follow for more.`;
 }
 
 export function quizSeriesBadge(card?: {

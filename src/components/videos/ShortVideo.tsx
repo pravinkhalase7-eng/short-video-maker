@@ -15,6 +15,7 @@ import {
   getSceneSequence,
   isQuizAnswerCard,
   isQuizQuestionCard,
+  isQuizTimeUpCard,
   parseQuizSheet,
   quizCountdownTiming,
   quizHoldFreezeFrame,
@@ -38,7 +39,7 @@ import {
   CutWhoosh,
 } from "./SceneSfx";
 import { QuizClockTimer, QuizCountdown } from "./QuizCountdown";
-import { QuizCommentCta } from "./QuizEngagement";
+import { QuizCommentCta, QuizTimeUpScreen } from "./QuizEngagement";
 import { VnFlashWipe, VnZoomPunch } from "./VnMotion";
 
 export const ShortVideo: React.FC<
@@ -133,8 +134,15 @@ export const ShortVideo: React.FC<
           scene.exampleCard,
           scene.overlayText,
         );
+        const quizTimeUp = isQuizTimeUpCard(
+          scene.exampleCard,
+          scene.overlayText,
+        );
         const worksheet =
-          usesHardcodedWorksheet(config, scenes) || quizQuestion || quizAnswer;
+          usesHardcodedWorksheet(config, scenes) ||
+          quizQuestion ||
+          quizAnswer ||
+          quizTimeUp;
         const windows = splitClipWindows(
           durationInFrames,
           worksheet ? 1 : clips.length,
@@ -218,6 +226,9 @@ export const ShortVideo: React.FC<
                 <VnFlashWipe play />
                 <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.38} />
               </>
+            ) : null}
+            {quizTimeUp ? (
+              <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.4} />
             ) : null}
             {useHook && i === 0 ? (
               <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.36} />
@@ -311,6 +322,7 @@ export const ShortVideo: React.FC<
                 text="FELL FOR THE TRAP? THE TRICK IS IN THE CAPTIONS"
               />
             ) : null}
+            {quizTimeUp ? <QuizTimeUpScreen variant={variant} play /> : null}
             <SceneCaptions
               captions={captions}
               sceneIndex={i}

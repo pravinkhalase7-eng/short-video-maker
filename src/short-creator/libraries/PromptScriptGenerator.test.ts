@@ -12,7 +12,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, isQuizTimeUpCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -401,6 +401,29 @@ test("quiz format writes one question worksheet then the answer", () => {
   expect(result.config.musicVolume).toBe(MusicVolumeEnum.medium);
 });
 
+test("quiz timeup ending holds the letter and asks for a comment", () => {
+  const result = generateLocalScript("how banana helps", {
+    targetDurationSec: 30,
+    format: "quiz",
+    quizEnding: "timeup",
+  });
+
+  expect(result.config.quizEnding).toBe("timeup");
+  expect(result.scenes[1].overlayText).toBe("TIMEUP");
+  expect(result.scenes[1].text.toLowerCase()).toMatch(/time's up/);
+  expect(result.scenes[1].text).not.toMatch(/answer is [A-D]/i);
+  expect(result.config.endCardText).toMatch(/comment/i);
+  expect(
+    isQuizTimeUpCard(result.scenes[1].exampleCard, result.scenes[1].overlayText),
+  ).toBe(true);
+  expect(
+    isQuizAnswerCard(result.scenes[1].exampleCard, result.scenes[1].overlayText),
+  ).toBe(false);
+  expect(
+    isQuizQuestionCard(result.scenes[1].exampleCard, result.scenes[1].overlayText),
+  ).toBe(false);
+});
+
 test("code quizzes ask for program output, not theory", () => {
   const result = generateLocalScript("Java 8 lambdas", {
     targetDurationSec: 30,
@@ -629,6 +652,11 @@ test("quiz cards are detected for countdown and answer freeze", () => {
   expect(isQuizQuestionCard({ kind: "quiz", title: "USA Quiz" })).toBe(true);
   expect(isQuizQuestionCard({ kind: "quiz", title: "Q1" })).toBe(true);
   expect(isQuizAnswerCard({ kind: "quiz", title: "B" })).toBe(true);
+  expect(isQuizTimeUpCard({ kind: "quiz" }, "TIMEUP")).toBe(true);
+  expect(isQuizAnswerCard({ kind: "quiz" }, "TIMEUP")).toBe(false);
+  expect(isQuizQuestionCard({ kind: "quiz", title: "Python Quiz" }, "TIMEUP")).toBe(
+    false,
+  );
   expect(isQuizQuestionCard({ kind: "quiz", title: "B" })).toBe(false);
   expect(
     isQuizAnswerCard({ kind: "quiz", title: "Python Quiz" }, "B"),

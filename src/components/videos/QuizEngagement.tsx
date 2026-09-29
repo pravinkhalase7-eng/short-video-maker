@@ -84,6 +84,94 @@ export const QuizSeriesBadge: React.FC<{
   );
 };
 
+export const QuizTimeUpScreen: React.FC<{
+  variant: Variant;
+  play: boolean;
+}> = ({ variant, play }) => {
+  if (!play) {
+    return null;
+  }
+  return <TimeUpStamp variant={variant} />;
+};
+
+const TimeUpStamp: React.FC<{ variant: Variant }> = ({ variant }) => {
+  const frame = useCurrentFrame();
+  const slam = vnEnter(frame, 0, {
+    duration: 12,
+    fromY: -80,
+    fromScale: 1.4,
+  });
+  const isPortrait = variant === "portrait";
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none" }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundColor: "rgba(8, 10, 24, 0.42)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          width: "100%",
+          top: isPortrait ? "38%" : "32%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: isPortrait ? 18 : 12,
+          paddingLeft: 48,
+          paddingRight: 48,
+          transform: vnTransform(slam),
+          opacity: slam.opacity,
+        }}
+      >
+        <div
+          style={{
+            padding: isPortrait ? "22px 36px" : "16px 28px",
+            borderRadius: 22,
+            backgroundColor: "#E53935",
+            boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
+            border: "4px solid #FFD166",
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontFamily: anton,
+              fontWeight: 400,
+              fontSize: isPortrait ? 92 : 72,
+              letterSpacing: 3,
+              color: "white",
+              lineHeight: 0.92,
+              textAlign: "center",
+              textShadow: "0 6px 0 rgba(0,0,0,0.28)",
+            }}
+          >
+            TIME'S UP
+          </p>
+        </div>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: outfit,
+            fontWeight: 800,
+            fontSize: isPortrait ? 36 : 28,
+            letterSpacing: 1.4,
+            color: "#FFD166",
+            textTransform: "uppercase",
+            textAlign: "center",
+            textShadow: "0 4px 16px rgba(0,0,0,0.7)",
+          }}
+        >
+          Comment A · B · C · D
+        </p>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 export const QuizCommentCta: React.FC<{
   from: number;
   durationInFrames: number;

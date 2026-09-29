@@ -1,7 +1,7 @@
 import { Config } from "../../config";
 import { logger } from "../../logger";
 import { spawnSync } from "node:child_process";
-import { looksLikeCode, looksLikeCodeLine, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation } from "../../components/utils";
+import { looksLikeCode, looksLikeCodeLine, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation, quizRevealSpeech, quizTimeUpSpeech } from "../../components/utils";
 import {
   CaptionPositionEnum,
   MusicMoodEnum,
@@ -14,6 +14,7 @@ import {
   type SceneInput,
   type TargetDurationSec,
   type VideoFormat,
+  type QuizEnding,
 } from "../../types/shorts";
 
 export type GeneratedShort = CreateShortInput & {
@@ -23,11 +24,13 @@ export type GeneratedShort = CreateShortInput & {
 export type ScriptGenerateOptions = {
   targetDurationSec?: TargetDurationSec;
   format?: VideoFormat;
+  quizEnding?: QuizEnding;
 };
 
 export type NormalizedScriptOptions = {
   targetDurationSec: TargetDurationSec;
   format: VideoFormat;
+  quizEnding?: QuizEnding;
 };
 
 const MUSIC_VALUES = new Set(Object.values(MusicMoodEnum));
@@ -140,7 +143,8 @@ export function normalizeScriptOptions(
   );
   const format =
     options?.format === "quiz" || pastedQuiz ? "quiz" : "story";
-  return { targetDurationSec, format };
+  const quizEnding = options?.quizEnding === "timeup" ? "timeup" : "reveal";
+  return { targetDurationSec, format, quizEnding };
 }
 
 export function scriptLimits(options: NormalizedScriptOptions): {
@@ -280,16 +284,19 @@ export function generateLocalScript(
     normalized.format === "quiz" ? "" : makeHookText(topic);
   const scenes: SceneInput[] =
     normalized.format === "quiz"
-      ? pinTopicSearchTerms(
-          buildLocalQuizScenes(
+      ? applyQuizEnding(
+          pinTopicSearchTerms(
+            buildLocalQuizScenes(
+              worksheet,
+              topic,
+              limits.questions,
+              limits.holdMs,
+              normalized.targetDurationSec,
+            ),
+            hookText,
             worksheet,
-            topic,
-            limits.questions,
-            limits.holdMs,
-            normalized.targetDurationSec,
           ),
-          hookText,
-          worksheet,
+          normalized.quizEnding,
         )
       : pinTopicSearchTerms(
           fillMissingExampleCards(
@@ -320,7 +327,9 @@ export function generateLocalScript(
       hookDurationMs: normalized.format === "quiz" ? 0 : 2200,
       endCardText:
         normalized.format === "quiz"
-          ? "Did you get it right?"
+          ? normalized.quizEnding === "timeup"
+            ? "Comment your answer"
+            : "Did you get it right?"
           : makeEndCardText(
               topic,
               scenes.map((scene) => scene.text),
@@ -328,10 +337,14 @@ export function generateLocalScript(
       endCardCta: "Follow for more",
       endCardBeats:
         normalized.format === "quiz"
-          ? quizAnswerBeats(scenes)
+          ? normalized.quizEnding === "timeup"
+            ? ["COMMENT", "A B C D"]
+            : quizAnswerBeats(scenes)
           : makeEndCardBeats(scenes),
       targetDurationSec: normalized.targetDurationSec,
       format: normalized.format,
+      quizEnding:
+        normalized.format === "quiz" ? normalized.quizEnding : undefined,
     },
   };
 }
@@ -529,16 +542,19 @@ export function parseGeneratedShort(
         makeHookText(scenes[0].text);
   const withCards =
     normalized.format === "quiz"
-      ? pinPastedQuiz(
-          applyProgrammingQuizSpeech(
-            applyQuizHolds(
-              fillMissingQuizCards(scenes, hookText, userPrompt),
-              limits.holdMs,
+      ? applyQuizEnding(
+          pinPastedQuiz(
+            applyProgrammingQuizSpeech(
+              applyQuizHolds(
+                fillMissingQuizCards(scenes, hookText, userPrompt),
+                limits.holdMs,
+              ),
             ),
+            userPrompt,
+            limits.holdMs,
+            normalized.targetDurationSec,
           ),
-          userPrompt,
-          limits.holdMs,
-          normalized.targetDurationSec,
+          normalized.quizEnding,
         )
       : fillMissingExampleCards(scenes, hookText);
   const result = {
@@ -577,7 +593,9 @@ export function parseGeneratedShort(
       endCardText:
         normalizeOptionalText(config.endCardText, 90) ||
         (normalized.format === "quiz"
-          ? "Did you get it right?"
+          ? normalized.quizEnding === "timeup"
+            ? "Comment your answer"
+            : "Did you get it right?"
           : makeEndCardText(
               "",
               scenes.map((scene) => scene.text),
@@ -587,10 +605,14 @@ export function parseGeneratedShort(
       endCardBeats:
         normalizeEndCardBeats(config.endCardBeats) ||
         (normalized.format === "quiz"
-          ? quizAnswerBeats(withCards)
+          ? normalized.quizEnding === "timeup"
+            ? ["COMMENT", "A B C D"]
+            : quizAnswerBeats(withCards)
           : makeEndCardBeats(withCards)),
       targetDurationSec: normalized.targetDurationSec,
       format: normalized.format,
+      quizEnding:
+        normalized.format === "quiz" ? normalized.quizEnding : undefined,
     },
   };
 
@@ -1362,7 +1384,39 @@ function applyProgrammingQuizSpeech(scenes: SceneInput[]): SceneInput[] {
 }
 
 function quizAnswerSpeech(letter: string): string {
-  return `The answer is ${letter}. Did you fall for the trap? The trick is in the captions. Follow for more.`;
+  return quizRevealSpeech(letter);
+}
+
+export function applyQuizEnding(
+  scenes: SceneInput[],
+  quizEnding?: QuizEnding,
+): SceneInput[] {
+  if (quizEnding !== "timeup") {
+    return scenes;
+  }
+  return scenes.map((scene, index) => {
+    const quiz = scene.exampleCard?.kind === "quiz";
+    const isReveal =
+      /^[A-D]$/i.test(scene.overlayText || "") ||
+      /^[A-D]$/i.test(scene.exampleCard?.title || "") ||
+      (quiz && index > 0);
+    if (!isReveal) {
+      return scene;
+    }
+    return {
+      ...scene,
+      text: quizTimeUpSpeech(),
+      overlayText: "TIMEUP",
+      exampleCard: scene.exampleCard
+        ? {
+            ...scene.exampleCard,
+            title: /^[A-D]$/i.test(scene.exampleCard.title || "")
+              ? "Quiz"
+              : scene.exampleCard.title,
+          }
+        : scene.exampleCard,
+    };
+  });
 }
 
 function applyQuizHolds(scenes: SceneInput[], holdMs: number): SceneInput[] {
