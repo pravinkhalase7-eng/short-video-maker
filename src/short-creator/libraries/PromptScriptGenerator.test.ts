@@ -12,7 +12,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, INSTAGRAM_REEL } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -696,6 +696,13 @@ D) Error`,
   const reveal = quizOptionReveal({ fps: 30, delayFrames: 0 });
   expect(reveal.from).toBeGreaterThan(0);
   expect(reveal.step).toBeGreaterThanOrEqual(18);
+  expect(quizCompositionFps("quiz")).toBe(20);
+  expect(quizCompositionFps("story")).toBe(25);
+  const freeze = quizHoldFreezeFrame({ fps: 20, delayFrames: 0, optionCount: 4 });
+  const quizReveal = quizOptionReveal({ fps: 20, delayFrames: 0 });
+  expect(freeze).toBeGreaterThan(
+    quizReveal.from + 3 * quizReveal.step,
+  );
   expect(quizCardTitle({ title: "Python Quiz" })).toBe("Python Quiz");
   expect(quizCardTitle({ title: "B" })).toBe("");
   const countdown = quizCountdownTiming({

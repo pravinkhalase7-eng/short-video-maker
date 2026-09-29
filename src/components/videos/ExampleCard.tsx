@@ -298,7 +298,7 @@ const QuizCard: React.FC<{
   poster?: boolean;
 }> = ({ title, body, answer, isPortrait, optionFrom, optionStep, poster }) => {
   const frame = useCurrentFrame();
-  const sheet = parseQuizSheet({ title, body, answer: poster ? undefined : answer });
+  const sheet = parseQuizSheet({ title, body, answer });
   const headline = quizSeriesHeadline({ title, body });
   const revealAll = Boolean(poster) || Boolean(sheet.answer);
   const optionFont = sheet.code ? (isPortrait ? 52 : 38) : isPortrait ? 56 : 42;
@@ -406,8 +406,8 @@ const QuizCard: React.FC<{
         }}
       >
         {options.map((option, index) => {
-          const selected = !poster && sheet.answer === option.letter;
-          const missed = !poster && Boolean(sheet.answer) && !selected;
+          const selected = Boolean(sheet.answer) && sheet.answer === option.letter;
+          const missed = Boolean(sheet.answer) && !selected;
           const color = OPTION_COLORS[option.letter] || "#5EC8F0";
           const appearAt = revealAll ? 0 : optionFrom + index * optionStep;
           const motion = vnEnter(frame, appearAt, {

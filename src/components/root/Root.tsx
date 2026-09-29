@@ -1,5 +1,5 @@
 import { CalculateMetadataFunction, Composition } from "remotion";
-import { INSTAGRAM_REEL, shortVideoSchema } from "../utils";
+import { INSTAGRAM_REEL, quizCompositionFps, shortVideoSchema } from "../utils";
 import { PortraitVideo } from "../videos/PortraitVideo";
 import { LandscapeVideo } from "../videos/LandscapeVideo";
 import { TestVideo } from "../videos/Test";
@@ -12,9 +12,11 @@ const FPS = 25;
 export const calculateMetadata: CalculateMetadataFunction<
   z.infer<typeof shortVideoSchema>
 > = async ({ props }) => {
-  const durationInFrames = Math.floor((props.config.durationMs / 1000) * FPS);
+  const fps = quizCompositionFps(props.config.format);
+  const durationInFrames = Math.floor((props.config.durationMs / 1000) * fps);
   return {
     ...props,
+    fps,
     durationInFrames,
   };
 };

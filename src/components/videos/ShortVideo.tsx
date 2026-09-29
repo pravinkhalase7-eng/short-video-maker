@@ -4,6 +4,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
   Audio,
+  Img,
 } from "remotion";
 import { z } from "zod";
 
@@ -16,6 +17,7 @@ import {
   isQuizQuestionCard,
   parseQuizSheet,
   quizCountdownTiming,
+  quizHoldFreezeFrame,
   quizOptionReveal,
   quizSeriesBadge,
   sceneClips,
@@ -176,24 +178,30 @@ export const ShortVideo: React.FC<
             key={`scene-${i}`}
           >
             {worksheet ? (
-              <VnZoomPunch play={quizAnswer}>
-                <QuizDeskBackground lang={quizSeriesBadge(scene.exampleCard)} />
-                {hasCard && scene.exampleCard ? (
-                  <ExampleCardOverlay
-                    card={scene.exampleCard}
-                    answerLetter={
-                      /^[A-D]$/i.test(scene.overlayText || "")
-                        ? scene.overlayText
-                        : undefined
-                    }
-                    variant={variant}
-                    delayFrames={delayFrames}
-                    sceneFrames={spokenFrames}
-                    optionFrom={optionReveal.from}
-                    optionStep={optionReveal.step}
-                  />
-                ) : null}
-              </VnZoomPunch>
+              <QuizWorksheetVisuals
+                lang={quizSeriesBadge(scene.exampleCard)}
+                card={scene.exampleCard}
+                answerLetter={
+                  /^[A-D]$/i.test(scene.overlayText || "")
+                    ? scene.overlayText
+                    : undefined
+                }
+                variant={variant}
+                delayFrames={delayFrames}
+                sceneFrames={spokenFrames}
+                optionFrom={optionReveal.from}
+                optionStep={optionReveal.step}
+                quizQuestion={quizQuestion}
+                quizAnswer={quizAnswer}
+                holdPoster={config.quizHoldPoster}
+                holdFrom={quizHoldFreezeFrame({
+                  fps,
+                  delayFrames,
+                  optionCount: quizOptions,
+                })}
+                answerPoster={config.quizAnswerPoster}
+                answerFrom={Math.max(8, Math.round(0.45 * fps))}
+              />
             ) : (
               <SceneBroll
                 clips={clips}
@@ -322,5 +330,72 @@ export const ShortVideo: React.FC<
       <StoryOverlaySequences config={config} variant={variant} />
       <EndCardSfx sfx={config.sfx} from={endCardFrom} fps={fps} />
     </AbsoluteFill>
+  );
+};
+
+const QuizWorksheetVisuals: React.FC<{
+  lang?: string;
+  card?: {
+    title?: string;
+    body: string;
+    kind?: "code" | "fact" | "quiz";
+  };
+  answerLetter?: string;
+  variant: "portrait" | "landscape";
+  delayFrames: number;
+  sceneFrames: number;
+  optionFrom: number;
+  optionStep: number;
+  quizQuestion: boolean;
+  quizAnswer: boolean;
+  holdPoster?: string;
+  holdFrom: number;
+  answerPoster?: string;
+  answerFrom: number;
+}> = ({
+  lang,
+  card,
+  answerLetter,
+  variant,
+  delayFrames,
+  sceneFrames,
+  optionFrom,
+  optionStep,
+  quizQuestion,
+  quizAnswer,
+  holdPoster,
+  holdFrom,
+  answerPoster,
+  answerFrom,
+}) => {
+  const frame = useCurrentFrame();
+  const poster =
+    (quizQuestion && holdPoster && frame >= holdFrom && holdPoster) ||
+    (quizAnswer && answerPoster && frame >= answerFrom && answerPoster);
+  if (typeof poster === "string") {
+    return (
+      <AbsoluteFill>
+        <Img
+          src={poster}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      </AbsoluteFill>
+    );
+  }
+  return (
+    <VnZoomPunch play={quizAnswer}>
+      <QuizDeskBackground lang={lang} />
+      {card ? (
+        <ExampleCardOverlay
+          card={card}
+          answerLetter={answerLetter}
+          variant={variant}
+          delayFrames={delayFrames}
+          sceneFrames={sceneFrames}
+          optionFrom={optionFrom}
+          optionStep={optionStep}
+        />
+      ) : null}
+    </VnZoomPunch>
   );
 };

@@ -200,7 +200,7 @@ const VideoDetails: React.FC = () => {
           <Typography variant="h6">Your video is being created...</Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
             {progress && progress >= 5
-              ? `Rendering ${progress}% — quiz Reels are 1080×1920, so this can take a few minutes.`
+              ? `Rendering ${progress}% — think-time frames are a still now, so this should finish faster.`
               : "Writing voiceover, then rendering the 1080×1920 Reel."}
           </Typography>
           {renderPostPack()}

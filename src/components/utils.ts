@@ -49,6 +49,8 @@ export const shortVideoSchema = z.object({
     endCardCta: z.string().optional(),
     endCardBeats: z.array(z.string()).max(3).optional(),
     format: z.enum(["story", "quiz"]).optional(),
+    quizHoldPoster: z.string().optional(),
+    quizAnswerPoster: z.string().optional(),
     sfx: z
       .object({
         whoosh: z.string(),
@@ -467,6 +469,10 @@ function quizSeriesLang(text: string): string | null {
   return null;
 }
 
+export function quizCompositionFps(format?: string): number {
+  return format === "quiz" ? 20 : 25;
+}
+
 export function quizOptionReveal({
   fps,
   delayFrames = 0,
@@ -478,6 +484,21 @@ export function quizOptionReveal({
     from: Math.max(0, delayFrames) + Math.max(12, Math.round(0.48 * fps)),
     step: Math.max(18, Math.round(0.55 * fps)),
   };
+}
+
+export function quizHoldFreezeFrame({
+  fps,
+  delayFrames = 0,
+  optionCount,
+}: {
+  fps: number;
+  delayFrames?: number;
+  optionCount: number;
+}): number {
+  const { from, step } = quizOptionReveal({ fps, delayFrames });
+  const last =
+    optionCount > 0 ? from + Math.max(0, optionCount - 1) * step : from;
+  return last + Math.max(8, Math.round(0.35 * fps));
 }
 
 export function quizCardTitle(card?: { title?: string }): string {

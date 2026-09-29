@@ -1,11 +1,19 @@
 import z from "zod";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
+import fs from "fs-extra";
+import os from "os";
 import path from "path";
 import { ensureBrowser } from "@remotion/renderer";
 
 import { Config } from "../../config";
-import { INSTAGRAM_REEL, getOrientationConfig, shortVideoSchema } from "../../components/utils";
+import {
+  INSTAGRAM_REEL,
+  getOrientationConfig,
+  isQuizAnswerCard,
+  isQuizQuestionCard,
+  shortVideoSchema,
+} from "../../components/utils";
 import { logger } from "../../logger";
 import { OrientationEnum } from "../../types/shorts";
 
@@ -40,17 +48,41 @@ export class Remotion {
     const { component } = getOrientationConfig(orientation);
     const isQuiz = data.config.format === "quiz";
     const concurrency = isQuiz
-      ? Math.max(2, this.config.concurrency ?? 1)
+      ? this.config.runningInDocker
+        ? 2
+        : Math.max(
+            this.config.concurrency ?? 4,
+            Math.min(6, (os.cpus().length || 4) - 1),
+          )
       : this.config.concurrency ?? 1;
+
+    const posters =
+      isQuiz && orientation === OrientationEnum.portrait
+        ? await this.makeQuizRenderStills(data, id)
+        : {};
+    const inputProps = {
+      ...data,
+      config: {
+        ...data.config,
+        ...posters,
+      },
+    };
 
     const composition = await selectComposition({
       serveUrl: this.bundled,
       id: component,
-      inputProps: data,
+      inputProps,
     });
 
     logger.info(
-      { component, videoID: id, concurrency, isQuiz },
+      {
+        component,
+        videoID: id,
+        concurrency,
+        isQuiz,
+        fps: composition.fps,
+        frames: composition.durationInFrames,
+      },
       "Rendering video with Remotion",
     );
 
@@ -66,7 +98,7 @@ export class Remotion {
           composition,
           serveUrl: this.bundled,
           outputLocation,
-          inputProps: data,
+          inputProps,
           onProgress: ({ progress }) => {
             onProgress?.(progress);
             const pct = Math.floor(progress * 100);
@@ -86,8 +118,8 @@ export class Remotion {
                   this.config.videoCacheSizeInBytes,
               }),
           timeoutInMilliseconds: 180000,
-          x264Preset: this.config.runningInDocker ? "ultrafast" : "veryfast",
-          jpegQuality: isQuiz ? 55 : 60,
+          x264Preset: isQuiz || this.config.runningInDocker ? "ultrafast" : "veryfast",
+          jpegQuality: isQuiz ? 50 : 60,
         });
         lastError = undefined;
         break;
@@ -102,6 +134,17 @@ export class Remotion {
         }
       }
     }
+
+    await Promise.all(
+      [posters.quizHoldPoster, posters.quizAnswerPoster]
+        .filter(Boolean)
+        .map((url) => {
+          const file = String(url).split("/api/tmp/")[1];
+          return file
+            ? fs.remove(path.join(this.config.tempDirPath, file)).catch(() => undefined)
+            : Promise.resolve();
+        }),
+    );
 
     if (lastError) {
       throw lastError;
@@ -118,8 +161,9 @@ export class Remotion {
   }
 
   async renderStillPoster(
-    data: { title?: string; body: string },
+    data: { title?: string; body: string; answer?: string },
     outputLocation: string,
+    imageFormat: "png" | "jpeg" = "png",
   ) {
     const composition = await selectComposition({
       serveUrl: this.bundled,
@@ -151,10 +195,65 @@ export class Remotion {
       output: outputLocation,
       inputProps: data,
       frame: 0,
-      imageFormat: "png",
+      imageFormat,
+      jpegQuality: 72,
       scale: 1,
       timeoutInMilliseconds: 120000,
     });
+  }
+
+  private async makeQuizRenderStills(
+    data: z.infer<typeof shortVideoSchema>,
+    id: string,
+  ): Promise<{ quizHoldPoster?: string; quizAnswerPoster?: string }> {
+    const question = data.scenes.find((scene) =>
+      isQuizQuestionCard(scene.exampleCard, scene.overlayText),
+    )?.exampleCard;
+    const answerScene = data.scenes.find((scene) =>
+      isQuizAnswerCard(scene.exampleCard, scene.overlayText),
+    );
+    if (!question?.body?.trim()) {
+      return {};
+    }
+    await fs.ensureDir(this.config.tempDirPath);
+    const holdFile = `${id}-hold.jpg`;
+    const answerFile = `${id}-answer.jpg`;
+    const holdPath = path.join(this.config.tempDirPath, holdFile);
+    const answerPath = path.join(this.config.tempDirPath, answerFile);
+    const asset = (file: string) =>
+      `http://127.0.0.1:${this.config.port}/api/tmp/${file}`;
+    try {
+      const jobs: Promise<void>[] = [
+        this.renderStillPoster(
+          { title: question.title, body: question.body },
+          holdPath,
+          "jpeg",
+        ),
+      ];
+      if (answerScene?.exampleCard?.body?.trim()) {
+        jobs.push(
+          this.renderStillPoster(
+            {
+              title: question.title,
+              body: question.body,
+              answer:
+                answerScene.overlayText?.trim() ||
+                answerScene.exampleCard.title,
+            },
+            answerPath,
+            "jpeg",
+          ),
+        );
+      }
+      await Promise.all(jobs);
+      return {
+        quizHoldPoster: asset(holdFile),
+        quizAnswerPoster: fs.existsSync(answerPath) ? asset(answerFile) : undefined,
+      };
+    } catch (error: unknown) {
+      logger.warn({ error, videoID: id }, "Quiz hold stills failed; rendering live frames");
+      return {};
+    }
   }
 
   async testRender(outputLocation: string) {
