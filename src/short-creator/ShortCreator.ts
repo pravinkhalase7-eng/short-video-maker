@@ -21,6 +21,8 @@ import {
   clipCountForDuration,
   captionsFromSpeech,
   usesHardcodedWorksheet,
+  snippetCodeFromText,
+  snippetFilename,
 } from "../components/utils";
 import { buildInstagramPost, type VideoPostMeta } from "./libraries/instagramPost";
 import { applyQuizEnding } from "./libraries/PromptScriptGenerator";
@@ -392,6 +394,30 @@ export class ShortCreator {
     logger.debug({ outputLocation }, "Rendering quiz poster");
     await this.remotion.renderStillPoster(
       { title: card.title, body: card.body },
+      outputLocation,
+    );
+    return outputLocation;
+  }
+
+  public async renderCodeSnippet(
+    code: string,
+    filename?: string,
+  ): Promise<string> {
+    const snippet = snippetCodeFromText(code);
+    if (!snippet) {
+      throw new Error("Paste a program first. Options and answers are left out.");
+    }
+    await fs.ensureDir(this.config.tempDirPath);
+    const outputLocation = path.join(
+      this.config.tempDirPath,
+      `code-snippet-${cuid()}.png`,
+    );
+    logger.debug({ outputLocation }, "Rendering code snippet poster");
+    await this.remotion.renderCodeSnippetStill(
+      {
+        code: snippet,
+        filename: filename?.trim() || snippetFilename(snippet),
+      },
       outputLocation,
     );
     return outputLocation;

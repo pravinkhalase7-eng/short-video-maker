@@ -24,6 +24,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
+import CodeIcon from "@mui/icons-material/Code";
 import {
   SceneInput,
   RenderConfig,
@@ -37,7 +38,7 @@ import {
   VideoFormat,
   QuizEnding,
 } from "../../types/shorts";
-import { quizRevealSpeech, quizTimeUpSpeech } from "../../components/utils";
+import { quizRevealSpeech, quizTimeUpSpeech, snippetCodeFromText, snippetFilename } from "../../components/utils";
 
 interface SceneFormData {
   text: string;
@@ -110,6 +111,7 @@ const VideoCreator: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [downloadingImage, setDownloadingImage] = useState(false);
+  const [downloadingSnippet, setDownloadingSnippet] = useState(false);
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [scriptReady, setScriptReady] = useState(false);
@@ -338,7 +340,7 @@ const VideoCreator: React.FC = () => {
   };
 
   const handleDownloadImage = async () => {
-    if (!scriptReady || loading || generating || downloadingImage) {
+    if (!scriptReady || loading || generating || downloadingImage || downloadingSnippet) {
       return;
     }
     const apiScenes = buildApiScenes();
@@ -358,6 +360,50 @@ const VideoCreator: React.FC = () => {
       console.error(err);
     } finally {
       setDownloadingImage(false);
+    }
+  };
+
+  const snippetSource = (): string => {
+    const fromCard = scenes.find((scene) => scene.exampleCardBody.trim())
+      ?.exampleCardBody;
+    return snippetCodeFromText(fromCard || prompt);
+  };
+
+  const handleDownloadSnippet = async () => {
+    if (loading || generating || downloadingImage || downloadingSnippet) {
+      return;
+    }
+    const code = snippetSource();
+    if (!code) {
+      setError(
+        "Paste a program in the quiz box. Options and answers are left out of the snippet.",
+      );
+      return;
+    }
+    setDownloadingSnippet(true);
+    setError(null);
+    try {
+      const response = await axios.post(
+        "/api/code-snippet",
+        { code, filename: snippetFilename(code) },
+        { responseType: "blob" },
+      );
+      const blob = new Blob([response.data], { type: "image/png" });
+      replacePoster(blob);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "vscode-snippet-1080x1920.png";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setSuccess("Downloaded VS Code snippet PNG. No options or answer.");
+    } catch (err) {
+      setError("Failed to render the snippet image. Try again.");
+      console.error(err);
+    } finally {
+      setDownloadingSnippet(false);
     }
   };
 
@@ -533,12 +579,29 @@ const VideoCreator: React.FC = () => {
           onChange={(e) => setPrompt(e.target.value)}
           helperText={
             config.format === "quiz"
-              ? "Paste a full question with code and A–D options, or type a topic like Java 8 lambdas."
+              ? "Paste a program or a full MCQ. Download snippet renders VS Code only — no options or answer."
               : "Describe the short. Generate will size the script to the length you picked."
           }
           inputProps={{ maxLength: 4000 }}
         />
-        <Box display="flex" justifyContent="flex-end" mt={2}>
+        <Box display="flex" justifyContent="flex-end" mt={2} gap={2} flexWrap="wrap">
+          {config.format === "quiz" ? (
+            <Button
+              type="button"
+              variant="outlined"
+              startIcon={
+                downloadingSnippet ? (
+                  <CircularProgress size={18} color="inherit" />
+                ) : (
+                  <CodeIcon />
+                )
+              }
+              onClick={() => handleDownloadSnippet()}
+              disabled={generating || loading || downloadingImage || downloadingSnippet}
+            >
+              {downloadingSnippet ? "Rendering snippet..." : "Download snippet"}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="contained"
@@ -550,7 +613,7 @@ const VideoCreator: React.FC = () => {
               )
             }
             onClick={handleGenerateFromPrompt}
-            disabled={generating || loading}
+            disabled={generating || loading || downloadingSnippet}
           >
             {generating
               ? "Generating..."
@@ -599,12 +662,34 @@ const VideoCreator: React.FC = () => {
             gap={2}
             flexWrap="wrap"
           >
+          {config.format === "quiz" ? (
+            <Button
+              type="button"
+              variant="outlined"
+              color="primary"
+              size="large"
+              disabled={
+                loading || generating || downloadingImage || downloadingSnippet
+              }
+              onClick={() => handleDownloadSnippet()}
+              startIcon={
+                downloadingSnippet ? (
+                  <CircularProgress size={18} color="inherit" />
+                ) : (
+                  <CodeIcon />
+                )
+              }
+              sx={{ minWidth: 200 }}
+            >
+              {downloadingSnippet ? "Rendering snippet..." : "Download snippet"}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outlined"
             color="primary"
             size="large"
-            disabled={loading || generating || downloadingImage}
+            disabled={loading || generating || downloadingImage || downloadingSnippet}
             onClick={() => handleDownloadImage()}
             startIcon={
               downloadingImage ? (
@@ -622,7 +707,7 @@ const VideoCreator: React.FC = () => {
             variant="contained"
             color="primary"
             size="large"
-            disabled={loading || generating || downloadingImage}
+            disabled={loading || generating || downloadingImage || downloadingSnippet}
             onClick={() => handleSubmit()}
             sx={{ minWidth: 200 }}
           >

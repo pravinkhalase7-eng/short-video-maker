@@ -12,7 +12,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, isQuizTimeUpCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, isQuizTimeUpCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL, snippetCodeFromText, snippetFilename } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -708,6 +708,21 @@ D) NameError`,
   expect(loopSheet.code).toContain("for i in range(3):");
   expect(loopSheet.code).toMatch(/\n    pass\n/);
   expect(loopSheet.code).toContain("print(i)");
+  expect(
+    snippetCodeFromText(`What is the output?
+for i in range(3):
+    pass
+
+print(i)
+A) 0
+B) 2
+C) 3
+D) NameError`),
+  ).toMatch(/\n    pass\n/);
+  expect(snippetCodeFromText(`a = 256\nb = 256\n\nprint(a is b)`)).toContain(
+    "print(a is b)",
+  );
+  expect(snippetFilename("print(a is b)")).toBe("main.py");
   const flatLoopSheet = parseQuizSheet({
     title: "Python Quiz",
     body: "What is the output?\nfor i in range(3):\npass\nprint(i)\nA) 0\nB) 2\nC) 3\nD) NameError",

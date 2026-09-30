@@ -265,6 +265,17 @@ export const quizPosterInput = z.object({
 });
 export type QuizPosterInput = z.infer<typeof quizPosterInput>;
 
+export const codeSnippetInput = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4000)
+    .describe("Program source to render as a VS Code snippet image"),
+  filename: z.string().trim().max(80).optional(),
+});
+export type CodeSnippetInput = z.infer<typeof codeSnippetInput>;
+
 export const generateShortInput = z.object({
   prompt: z
     .string()

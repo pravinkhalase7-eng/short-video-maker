@@ -202,6 +202,48 @@ export class Remotion {
     });
   }
 
+  async renderCodeSnippetStill(
+    data: { code: string; filename?: string },
+    outputLocation: string,
+    imageFormat: "png" | "jpeg" = "png",
+  ) {
+    const composition = await selectComposition({
+      serveUrl: this.bundled,
+      id: "CodeSnippetPoster",
+      inputProps: data,
+    });
+
+    logger.debug(
+      {
+        outputLocation,
+        width: composition.width,
+        height: composition.height,
+      },
+      "Rendering code snippet still",
+    );
+
+    if (
+      composition.width !== INSTAGRAM_REEL.width ||
+      composition.height !== INSTAGRAM_REEL.height
+    ) {
+      throw new Error(
+        `Code snippet must be ${INSTAGRAM_REEL.width}×${INSTAGRAM_REEL.height} (9:16)`,
+      );
+    }
+
+    await renderStill({
+      composition,
+      serveUrl: this.bundled,
+      output: outputLocation,
+      inputProps: data,
+      frame: 0,
+      imageFormat,
+      ...(imageFormat === "jpeg" ? { jpegQuality: 72 } : {}),
+      scale: 1,
+      timeoutInMilliseconds: 120000,
+    });
+  }
+
   private async makeQuizRenderStills(
     data: z.infer<typeof shortVideoSchema>,
     id: string,

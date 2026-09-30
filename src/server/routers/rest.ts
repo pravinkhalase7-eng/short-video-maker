@@ -11,7 +11,7 @@ import { ShortCreator } from "../../short-creator/ShortCreator";
 import { logger } from "../../logger";
 import { Config } from "../../config";
 import { PromptScriptGenerator } from "../../short-creator/libraries/PromptScriptGenerator";
-import { generateShortInput, quizPosterInput } from "../../types/shorts";
+import { generateShortInput, quizPosterInput, codeSnippetInput } from "../../types/shorts";
 
 // todo abstract class
 export class APIRouter {
@@ -132,6 +132,48 @@ export class APIRouter {
           logger.error(error, "Error rendering quiz poster");
           res.status(500).json({
             error: "Failed to render quiz image",
+            message: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      },
+    );
+
+    this.router.post(
+      "/code-snippet",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          const parsed = codeSnippetInput.safeParse(req.body);
+          if (!parsed.success) {
+            res.status(400).json({
+              error: "Validation failed",
+              message:
+                parsed.error.errors[0]?.message || "Paste a program to render",
+            });
+            return;
+          }
+
+          const filePath = await this.shortCreator.renderCodeSnippet(
+            parsed.data.code,
+            parsed.data.filename,
+          );
+          res.setHeader("Content-Type", "image/png");
+          res.setHeader(
+            "Content-Disposition",
+            'attachment; filename="code-snippet.png"',
+          );
+          res.sendFile(path.resolve(filePath), (error) => {
+            fs.remove(filePath).catch(() => undefined);
+            if (error && !res.headersSent) {
+              logger.error(error, "Error sending code snippet");
+              res.status(500).json({
+                error: "Failed to download snippet image",
+              });
+            }
+          });
+        } catch (error: unknown) {
+          logger.error(error, "Error rendering code snippet");
+          res.status(500).json({
+            error: "Failed to render snippet image",
             message: error instanceof Error ? error.message : "Unknown error",
           });
         }

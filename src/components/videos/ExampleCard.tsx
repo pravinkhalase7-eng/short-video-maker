@@ -506,19 +506,47 @@ const MacCodeWindow: React.FC<{
   code: string;
   isPortrait: boolean;
 }> = ({ code, isPortrait }) => {
-  const lines = code.split(/\r?\n/).slice(0, 8);
-  const fontSize = lines.length > 5 ? (isPortrait ? 32 : 24) : isPortrait ? 40 : 30;
+  return (
+    <VsCodeSnippetWindow code={code} isPortrait={isPortrait} maxLines={8} />
+  );
+};
+
+export const VsCodeSnippetWindow: React.FC<{
+  code: string;
+  filename?: string;
+  isPortrait: boolean;
+  maxLines?: number;
+}> = ({ code, filename, isPortrait, maxLines = 16 }) => {
+  const lines = code.split(/\r?\n/).slice(0, maxLines);
+  const tab = filename || "main.py";
+  const fontSize =
+    lines.length > 12
+      ? isPortrait
+        ? 26
+        : 20
+      : lines.length > 8
+        ? isPortrait
+          ? 30
+          : 22
+        : lines.length > 5
+          ? isPortrait
+            ? 34
+            : 24
+          : isPortrait
+            ? 40
+            : 30;
+  const gutter = isPortrait ? 56 : 46;
   return (
     <div
       style={{
         margin: "0 auto",
         width: "100%",
-        maxWidth: isPortrait ? 900 : 960,
-        borderRadius: 22,
+        maxWidth: isPortrait ? 960 : 980,
+        borderRadius: 16,
         overflow: "hidden",
-        backgroundColor: "#2b3444",
-        border: "1px solid rgba(255,255,255,0.1)",
-        boxShadow: "0 22px 48px rgba(0,0,0,0.5)",
+        backgroundColor: "#1e1e1e",
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 28px 64px rgba(0,0,0,0.55)",
       }}
     >
       <div
@@ -526,59 +554,122 @@ const MacCodeWindow: React.FC<{
           display: "flex",
           alignItems: "center",
           gap: 10,
-          padding: isPortrait ? "16px 20px 10px" : "12px 16px 8px",
+          padding: isPortrait ? "12px 16px" : "10px 14px",
+          backgroundColor: "#3c3c3c",
         }}
       >
         <Dot color="#ff5f56" />
         <Dot color="#ffbd2e" />
         <Dot color="#27c93f" />
+        <span
+          style={{
+            marginLeft: 8,
+            flex: 1,
+            fontFamily: nunito,
+            fontWeight: 800,
+            fontSize: isPortrait ? 18 : 15,
+            color: "#d4d4d4",
+            letterSpacing: 0.2,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {tab} — Visual Studio Code
+        </span>
       </div>
       <div
         style={{
-          padding: isPortrait ? "12px 24px 32px 12px" : "8px 18px 22px 8px",
+          display: "flex",
+          alignItems: "center",
+          gap: 0,
+          backgroundColor: "#252526",
+          borderBottom: "1px solid #1e1e1e",
+          paddingLeft: 12,
         }}
       >
-        {lines.map((line, index) => (
-          <div
-            key={`mac-line-${index}`}
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              minHeight: fontSize * 1.42,
-            }}
-          >
-            <span
+        <div
+          style={{
+            padding: isPortrait ? "10px 18px 8px" : "8px 14px 6px",
+            backgroundColor: "#1e1e1e",
+            borderTop: "2px solid #007acc",
+            fontFamily: nunito,
+            fontWeight: 800,
+            fontSize: isPortrait ? 16 : 13,
+            color: "#cccccc",
+          }}
+        >
+          {tab}
+        </div>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          backgroundColor: "#1e1e1e",
+          padding: isPortrait ? "18px 20px 28px 8px" : "12px 14px 20px 6px",
+          minHeight: isPortrait ? 420 : 280,
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {lines.map((line, index) => (
+            <div
+              key={`vscode-line-${index}`}
               style={{
-                width: isPortrait ? 52 : 42,
-                flexShrink: 0,
-                textAlign: "right",
-                paddingRight: 18,
-                color: "#8b93a5",
-                fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-                fontSize: fontSize - 2,
-                lineHeight: 1.42,
+                display: "flex",
+                alignItems: "flex-start",
+                minHeight: fontSize * 1.45,
               }}
             >
-              {index + 1}
-            </span>
-            <pre
-              style={{
-                margin: 0,
-                flex: 1,
-                fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-                fontSize,
-                lineHeight: 1.42,
-                color: "#f2f5fa",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-            >
-              <HighlightedCode text={line.length ? line : " "} />
-            </pre>
-          </div>
-        ))}
+              <span
+                style={{
+                  width: gutter,
+                  flexShrink: 0,
+                  textAlign: "right",
+                  paddingRight: 16,
+                  color: "#858585",
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+                  fontSize: fontSize - 2,
+                  lineHeight: 1.45,
+                }}
+              >
+                {index + 1}
+              </span>
+              <pre
+                style={{
+                  margin: 0,
+                  flex: 1,
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+                  fontSize,
+                  lineHeight: 1.45,
+                  color: "#d4d4d4",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                <HighlightedCode text={line.length ? line : " "} />
+              </pre>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: isPortrait ? "8px 16px" : "6px 12px",
+          backgroundColor: "#007acc",
+          fontFamily: nunito,
+          fontWeight: 800,
+          fontSize: isPortrait ? 14 : 12,
+          color: "white",
+          letterSpacing: 0.3,
+        }}
+      >
+        <span>{tab.endsWith(".java") ? "Java" : tab.endsWith(".js") ? "JavaScript" : "Python"}</span>
+        <span>{`UTF-8  Ln ${lines.length}, Col 1`}</span>
       </div>
     </div>
   );

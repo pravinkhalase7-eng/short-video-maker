@@ -750,6 +750,46 @@ export function restorePythonIndent(code: string): string {
   return result.join("\n");
 }
 
+export function snippetCodeFromText(text: string): string {
+  const body = text.replace(/```(?:\w+)?/g, "").trim();
+  if (!body) {
+    return "";
+  }
+  const sheet = parseQuizSheet({ title: "Quiz", body });
+  if (sheet.code?.trim()) {
+    return sheet.code.trim();
+  }
+  const kept = body
+    .split(/\r?\n/)
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        return true;
+      }
+      if (QUIZ_OPTION_LINE.test(trimmed) || QUIZ_ANSWER_LINE.test(trimmed)) {
+        return false;
+      }
+      if (/^what is the output\s*\??$/i.test(trimmed)) {
+        return false;
+      }
+      return true;
+    })
+    .join("\n")
+    .replace(/^\n+/, "")
+    .replace(/\n+$/, "");
+  return restorePythonIndent(kept);
+}
+
+export function snippetFilename(code: string): string {
+  if (/\b(public\s+class|System\.out|void\s+main)\b/.test(code)) {
+    return "Main.java";
+  }
+  if (/\b(console\.log|const\s|let\s|=>)\b/.test(code)) {
+    return "index.js";
+  }
+  return "main.py";
+}
+
 export function quizCaptionExplanation(sheet: QuizSheet): string {
   const parts = quizExplainParts(sheet);
   return `${parts.lead}${parts.why}`.trim();

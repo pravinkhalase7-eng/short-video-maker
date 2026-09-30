@@ -4,6 +4,7 @@ import { PortraitVideo } from "../videos/PortraitVideo";
 import { LandscapeVideo } from "../videos/LandscapeVideo";
 import { TestVideo } from "../videos/Test";
 import { QuizPoster } from "../videos/QuizPoster";
+import { CodeSnippetPoster } from "../videos/CodeSnippetPoster";
 import z from "zod";
 import { AvailableComponentsEnum } from "../types";
 
@@ -333,6 +334,18 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           title: "Python Quiz",
           body: "What is the output?\nx = 10\ny = 3\nprint(x // y)\nprint(x % y)\nA) 3, 1\nB) 3, 0\nC) 3.33, 1\nD) 4, 1",
+        }}
+      />
+      <Composition
+        id="CodeSnippetPoster"
+        component={CodeSnippetPoster}
+        durationInFrames={1}
+        fps={FPS}
+        width={INSTAGRAM_REEL.width}
+        height={INSTAGRAM_REEL.height}
+        defaultProps={{
+          code: "a = 256\nb = 256\n\nprint(a is b)",
+          filename: "main.py",
         }}
       />
       <Composition
