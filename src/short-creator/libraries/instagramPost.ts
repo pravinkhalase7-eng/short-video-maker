@@ -15,7 +15,12 @@ export type VideoPostMeta = {
   explanation: string;
   hashtags: string[];
   instagramText: string;
+  youtubeTitle: string;
+  youtubeDescription: string;
 };
+
+export const YOUTUBE_TITLE_MAX = 100;
+export const YOUTUBE_DESCRIPTION_MAX = 5000;
 
 export function buildInstagramPost({
   id,
@@ -44,22 +49,20 @@ export function buildInstagramPost({
   const title = isQuiz
     ? quizTitle(sheet, quizCard?.title)
     : storyTitle(config?.hookText, promptText, scenes[0]?.text);
+  const answerLetter = quizAnswerLetter(sheet, scenes);
   const generated = isQuiz && sheet
     ? quizInstagramExplanation({
         ...sheet,
-        answer:
-          sheet.answer ||
-          scenes.find((scene) => /^[A-D]$/i.test(scene.overlayText || ""))
-            ?.overlayText?.toUpperCase() ||
-          scenes.find((scene) => /^[A-D]$/i.test(scene.exampleCard?.title || ""))
-            ?.exampleCard?.title?.toUpperCase() ||
-          null,
+        answer: answerLetter || sheet.answer,
       })
     : storyExplanation(scenes);
-  const explanation = providedExplanation?.replace(/\s+/g, " ").trim() || generated;
-  const hideAnswer = config?.quizEnding === "timeup";
+  const explanation = withAnswerLead(
+    providedExplanation?.replace(/\s+/g, " ").trim() || generated,
+    answerLetter,
+  );
+  const hideAnswerOnVideo = config?.quizEnding === "timeup";
   const caption = isQuiz
-    ? hideAnswer
+    ? hideAnswerOnVideo
       ? "Time's up. Comment A, B, C, or D. Follow for more."
       : "Comment A, B, C, or D before you scroll. Follow for more traps."
     : storyCaption(promptText, scenes[0]?.text, config?.endCardCta);
@@ -68,9 +71,15 @@ export function buildInstagramPost({
     title,
     caption,
     ".\n.\n.",
-    hideAnswer ? "" : explanation,
+    explanation,
     hashtags.join(" "),
   ]);
+  const youtubeTitle = youtubeTitleWithHashtags(title, hashtags);
+  const youtubeDescription = compactInstagramText([
+    caption,
+    explanation,
+    hashtags.join(" "),
+  ]).slice(0, YOUTUBE_DESCRIPTION_MAX);
 
   return {
     id,
@@ -82,6 +91,8 @@ export function buildInstagramPost({
     explanation,
     hashtags,
     instagramText,
+    youtubeTitle,
+    youtubeDescription,
   };
 }
 
@@ -90,6 +101,71 @@ function compactInstagramText(parts: string[]): string {
     .map((part) => part.replace(/\n{3,}/g, "\n\n").trim())
     .filter(Boolean)
     .join("\n\n");
+}
+
+function quizAnswerLetter(
+  sheet: ReturnType<typeof parseQuizSheet> | null,
+  scenes: SceneInput[],
+): string | null {
+  const fromSheet = sheet?.answer && /^[A-D]$/i.test(sheet.answer) ? sheet.answer.toUpperCase() : "";
+  const fromOverlay =
+    scenes
+      .map((scene) => scene.overlayText || scene.exampleCard?.title || "")
+      .find((value) => /^[A-D]$/i.test(value))
+      ?.toUpperCase() || "";
+  return fromSheet || fromOverlay || null;
+}
+
+function withAnswerLead(explanation: string, letter: string | null): string {
+  const text = explanation.replace(/\s+/g, " ").trim();
+  if (!letter) {
+    return text;
+  }
+  if (/answer is [A-D]\b/i.test(text)) {
+    return text.replace(/the answer is [A-D]\b/i, `The answer is ${letter}`);
+  }
+  return `The answer is ${letter}. ${text}`.trim();
+}
+
+export function youtubeTitleWithHashtags(
+  title: string,
+  hashtags: string[],
+): string {
+  const tags = hashtags.filter(Boolean).slice(0, 3);
+  const tagText = tags.join(" ");
+  const maxHead = Math.max(
+    32,
+    YOUTUBE_TITLE_MAX - (tagText ? tagText.length + 1 : 0),
+  );
+  const head = title.replace(/\s+/g, " ").trim().slice(0, maxHead).trim();
+  if (!tagText) {
+    return head.slice(0, YOUTUBE_TITLE_MAX);
+  }
+  return `${head} ${tagText}`.slice(0, YOUTUBE_TITLE_MAX);
+}
+
+export function hydrateVideoPostMeta(meta: VideoPostMeta): VideoPostMeta {
+  const hashtags = meta.hashtags || [];
+  const explanation = (meta.explanation || "").trim();
+  const instagramText = compactInstagramText([
+    meta.title || "",
+    meta.caption || "",
+    ".\n.\n.",
+    explanation,
+    hashtags.join(" "),
+  ]);
+  return {
+    ...meta,
+    hashtags,
+    explanation,
+    instagramText: instagramText || meta.instagramText,
+    youtubeTitle: youtubeTitleWithHashtags(meta.title || "", hashtags),
+    youtubeDescription: compactInstagramText([
+      meta.caption || "",
+      explanation,
+      hashtags.join(" "),
+    ]).slice(0, YOUTUBE_DESCRIPTION_MAX),
+  };
 }
 
 function quizTitle(

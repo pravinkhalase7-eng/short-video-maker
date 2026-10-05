@@ -222,13 +222,31 @@ export function getSceneSequence({
   return { startFrame, durationInFrames };
 }
 
+export function cardLooksLikeQuiz(card?: {
+  kind?: string;
+  title?: string;
+  body?: string;
+}): boolean {
+  if (!card) {
+    return false;
+  }
+  if (card.kind === "quiz") {
+    return true;
+  }
+  const title = (card.title || "").trim();
+  if (/^Q\d+$/i.test(title) || /^[A-D]$/i.test(title) || /quiz$/i.test(title)) {
+    return true;
+  }
+  return /(?:^|\n)\s*[A-D](?:[)\]:\-]|\.)\s+\S/.test(card.body || "");
+}
+
 export function usesHardcodedWorksheet(
   config?: { format?: string },
-  scenes?: { exampleCard?: { kind?: string } }[],
+  scenes?: { exampleCard?: { kind?: string; title?: string; body?: string } }[],
 ): boolean {
   return (
     config?.format === "quiz" ||
-    Boolean(scenes?.some((scene) => scene.exampleCard?.kind === "quiz"))
+    Boolean(scenes?.some((scene) => cardLooksLikeQuiz(scene.exampleCard)))
   );
 }
 
@@ -417,10 +435,11 @@ export function isQuizTimeUpCard(
   card?: {
     title?: string;
     kind?: string;
+    body?: string;
   },
   overlayText?: string,
 ): boolean {
-  if (card?.kind !== "quiz") {
+  if (!cardLooksLikeQuiz(card)) {
     return false;
   }
   return /time\s*['’]?s?\s*up|^TIMEUP$/i.test(overlayText || "");
@@ -430,14 +449,15 @@ export function isQuizAnswerCard(
   card?: {
     title?: string;
     kind?: string;
+    body?: string;
   },
   overlayText?: string,
 ): boolean {
-  if (card?.kind !== "quiz" || isQuizTimeUpCard(card, overlayText)) {
+  if (!cardLooksLikeQuiz(card) || isQuizTimeUpCard(card, overlayText)) {
     return false;
   }
   return (
-    /^[A-D]$/i.test(card.title || "") || /^[A-D]$/i.test(overlayText || "")
+    /^[A-D]$/i.test(card?.title || "") || /^[A-D]$/i.test(overlayText || "")
   );
 }
 
@@ -445,11 +465,12 @@ export function isQuizQuestionCard(
   card?: {
     title?: string;
     kind?: string;
+    body?: string;
   },
   overlayText?: string,
 ): boolean {
   return (
-    card?.kind === "quiz" &&
+    cardLooksLikeQuiz(card) &&
     !isQuizAnswerCard(card, overlayText) &&
     !isQuizTimeUpCard(card, overlayText)
   );

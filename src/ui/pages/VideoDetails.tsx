@@ -26,6 +26,8 @@ type VideoDetailsData = {
   explanation?: string;
   hashtags?: string[];
   instagramText?: string;
+  youtubeTitle?: string;
+  youtubeDescription?: string;
 };
 
 const VideoDetails: React.FC = () => {
@@ -36,6 +38,7 @@ const VideoDetails: React.FC = () => {
   const [status, setStatus] = useState<VideoStatus>("processing");
   const [details, setDetails] = useState<VideoDetailsData | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedMessage, setCopiedMessage] = useState("Copied.");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(true);
 
@@ -86,12 +89,53 @@ const VideoDetails: React.FC = () => {
     navigate("/");
   };
 
-  const handleCopy = async () => {
-    const text = details?.instagramText?.trim();
-    if (!text) {
+  const packCopy = () => {
+    const tags = details?.hashtags?.join(" ") || "";
+    const parts = [
+      details?.title,
+      details?.caption,
+      ".\n.\n.",
+      details?.explanation,
+      tags,
+    ]
+      .map((part) => (part || "").replace(/\n{3,}/g, "\n\n").trim())
+      .filter(Boolean);
+    return parts.join("\n\n");
+  };
+
+  const youtubeTitleCopy = () => {
+    const stored = details?.youtubeTitle?.trim();
+    if (stored) {
+      return stored.slice(0, 100);
+    }
+    const tags = (details?.hashtags || []).slice(0, 3).join(" ");
+    const head = (details?.title || "").replace(/\s+/g, " ").trim();
+    const maxHead = Math.max(32, 100 - (tags ? tags.length + 1 : 0));
+    const trimmed = head.slice(0, maxHead).trim();
+    return (tags ? `${trimmed} ${tags}` : trimmed).slice(0, 100);
+  };
+
+  const youtubeDescriptionCopy = () => {
+    if (details?.youtubeDescription?.trim()) {
+      return details.youtubeDescription.trim();
+    }
+    return [
+      details?.caption,
+      details?.explanation,
+      details?.hashtags?.join(" "),
+    ]
+      .map((part) => (part || "").replace(/\n{3,}/g, "\n\n").trim())
+      .filter(Boolean)
+      .join("\n\n");
+  };
+
+  const handleCopy = async (text: string, message: string) => {
+    const value = text.trim();
+    if (!value) {
       return;
     }
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(value);
+    setCopiedMessage(message);
     setCopied(true);
   };
 
@@ -166,15 +210,70 @@ const VideoDetails: React.FC = () => {
             ))}
           </Box>
         ) : null}
-        {details.instagramText ? (
-          <Button
-            variant="contained"
-            startIcon={<ContentCopyIcon />}
-            onClick={handleCopy}
-          >
-            Copy Instagram caption
-          </Button>
+        {youtubeTitleCopy() ? (
+          <>
+            <Typography variant="body2" color="text.secondary">
+              YouTube title
+            </Typography>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              {youtubeTitleCopy()}
+            </Typography>
+          </>
         ) : null}
+        {youtubeDescriptionCopy() ? (
+          <>
+            <Typography variant="body2" color="text.secondary">
+              YouTube description
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{ whiteSpace: "pre-wrap", mb: 2 }}
+            >
+              {youtubeDescriptionCopy()}
+            </Typography>
+          </>
+        ) : null}
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+          {packCopy() ? (
+            <Button
+              variant="contained"
+              startIcon={<ContentCopyIcon />}
+              onClick={() =>
+                handleCopy(packCopy(), "Copied. Paste it into Instagram.")
+              }
+            >
+              Copy Instagram caption
+            </Button>
+          ) : null}
+          {youtubeTitleCopy() ? (
+            <Button
+              variant="outlined"
+              startIcon={<ContentCopyIcon />}
+              onClick={() =>
+                handleCopy(
+                  youtubeTitleCopy(),
+                  "Copied YouTube title (100-character limit).",
+                )
+              }
+            >
+              Copy YouTube title
+            </Button>
+          ) : null}
+          {youtubeDescriptionCopy() ? (
+            <Button
+              variant="outlined"
+              startIcon={<ContentCopyIcon />}
+              onClick={() =>
+                handleCopy(
+                  youtubeDescriptionCopy(),
+                  "Copied YouTube description.",
+                )
+              }
+            >
+              Copy YouTube description
+            </Button>
+          ) : null}
+        </Box>
       </Paper>
     );
   };
@@ -326,7 +425,7 @@ const VideoDetails: React.FC = () => {
         open={copied}
         autoHideDuration={2000}
         onClose={() => setCopied(false)}
-        message="Copied. Paste it into Instagram."
+        message={copiedMessage}
       />
     </Box>
   );

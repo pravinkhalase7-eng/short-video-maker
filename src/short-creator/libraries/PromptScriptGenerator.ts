@@ -1,7 +1,7 @@
 import { Config } from "../../config";
 import { logger } from "../../logger";
 import { spawnSync } from "node:child_process";
-import { looksLikeCode, looksLikeCodeLine, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation, quizRevealSpeech, quizTimeUpSpeech } from "../../components/utils";
+import { cardLooksLikeQuiz, looksLikeCode, looksLikeCodeLine, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation, quizRevealSpeech, quizTimeUpSpeech } from "../../components/utils";
 import {
   CaptionPositionEnum,
   MusicMoodEnum,
@@ -1387,6 +1387,24 @@ function quizAnswerSpeech(letter: string): string {
   return quizRevealSpeech(letter);
 }
 
+export function prepareQuizScenes(
+  scenes: SceneInput[],
+  config?: { format?: string; quizEnding?: QuizEnding },
+): SceneInput[] {
+  const withKind =
+    config?.format === "quiz"
+      ? scenes.map((scene) =>
+          scene.exampleCard?.body
+            ? {
+                ...scene,
+                exampleCard: { ...scene.exampleCard, kind: "quiz" as const },
+              }
+            : scene,
+        )
+      : scenes;
+  return applyQuizEnding(withKind, config?.quizEnding);
+}
+
 export function applyQuizEnding(
   scenes: SceneInput[],
   quizEnding?: QuizEnding,
@@ -1395,10 +1413,10 @@ export function applyQuizEnding(
     return scenes;
   }
   return scenes.map((scene, index) => {
-    const quiz = scene.exampleCard?.kind === "quiz";
+    const quiz = cardLooksLikeQuiz(scene.exampleCard);
+    const letter = quizRevealLetter(scene);
     const isReveal =
-      /^[A-D]$/i.test(scene.overlayText || "") ||
-      /^[A-D]$/i.test(scene.exampleCard?.title || "") ||
+      Boolean(letter) ||
       (quiz && index > 0);
     if (!isReveal) {
       return scene;
@@ -1407,16 +1425,42 @@ export function applyQuizEnding(
       ...scene,
       text: quizTimeUpSpeech(),
       overlayText: "TIMEUP",
-      exampleCard: scene.exampleCard
-        ? {
-            ...scene.exampleCard,
-            title: /^[A-D]$/i.test(scene.exampleCard.title || "")
-              ? "Quiz"
-              : scene.exampleCard.title,
-          }
-        : scene.exampleCard,
+      exampleCard: pinQuizAnswer(scene.exampleCard, letter),
     };
   });
+}
+
+function quizRevealLetter(scene: SceneInput): string | undefined {
+  const overlay = scene.overlayText?.trim() || "";
+  if (/^[A-D]$/i.test(overlay)) {
+    return overlay.toUpperCase();
+  }
+  const title = scene.exampleCard?.title?.trim() || "";
+  if (/^[A-D]$/i.test(title)) {
+    return title.toUpperCase();
+  }
+  return undefined;
+}
+
+function pinQuizAnswer(
+  card: ExampleCard | undefined,
+  letter?: string,
+): ExampleCard | undefined {
+  if (!card) {
+    return card;
+  }
+  const withKind = { ...card, kind: "quiz" as const };
+  if (!letter || /(?:^|\n)\s*answer\s*[:\-]\s*[A-D]\b/i.test(card.body)) {
+    return {
+      ...withKind,
+      title: /^[A-D]$/i.test(card.title || "") ? "Quiz" : card.title,
+    };
+  }
+  return {
+    ...withKind,
+    title: /^[A-D]$/i.test(card.title || "") ? "Quiz" : card.title,
+    body: `${card.body.trim()}\nAnswer: ${letter}`,
+  };
 }
 
 function applyQuizHolds(scenes: SceneInput[], holdMs: number): SceneInput[] {
@@ -1447,8 +1491,14 @@ function fillMissingQuizCards(
   const topic = cleanTopic(userPrompt || hookText || scenes[0]?.text || "this");
   const heading = makeQuizSheetTitle(topic);
   return scenes.map((scene, index) => {
-    if (scene.exampleCard?.kind === "quiz" && scene.exampleCard.body) {
-      return scene;
+    if (scene.exampleCard?.body) {
+      return {
+        ...scene,
+        exampleCard: {
+          ...scene.exampleCard,
+          kind: "quiz",
+        },
+      };
     }
     const question =
       scene.text.replace(/\s+/g, " ").trim() || `What about ${topic}?`;
@@ -1779,9 +1829,9 @@ function localCodeOutputBank(prompt: string, topic: string): QuizItem[] {
 }
 
 function clampCardBody(body: string, kind?: string): string {
-  const maxLines = kind === "quiz" ? 12 : 6;
-  const maxChars = kind === "quiz" ? 72 : 42;
-  const maxTotal = kind === "quiz" ? 640 : 280;
+  const maxLines = kind === "quiz" ? 16 : 6;
+  const maxChars = kind === "quiz" ? 80 : 42;
+  const maxTotal = kind === "quiz" ? 960 : 280;
   return body
     .replace(/\t/g, "  ")
     .split(/\r?\n/)

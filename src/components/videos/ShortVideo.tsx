@@ -196,7 +196,7 @@ export const ShortVideo: React.FC<
                 }
                 variant={variant}
                 delayFrames={delayFrames}
-                sceneFrames={spokenFrames}
+                sceneFrames={durationInFrames}
                 optionFrom={optionReveal.from}
                 optionStep={optionReveal.step}
                 quizQuestion={quizQuestion}

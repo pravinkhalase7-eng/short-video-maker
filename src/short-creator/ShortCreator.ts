@@ -24,8 +24,12 @@ import {
   snippetCodeFromText,
   snippetFilename,
 } from "../components/utils";
-import { buildInstagramPost, type VideoPostMeta } from "./libraries/instagramPost";
-import { applyQuizEnding } from "./libraries/PromptScriptGenerator";
+import {
+  buildInstagramPost,
+  hydrateVideoPostMeta,
+  type VideoPostMeta,
+} from "./libraries/instagramPost";
+import { prepareQuizScenes } from "./libraries/PromptScriptGenerator";
 import {
   llmQuizExplanation,
   quizFactsFromScenes,
@@ -87,7 +91,7 @@ export class ShortCreator {
     prompt?: string,
     explanation?: string,
   ): Promise<string> {
-    const scenes = applyQuizEnding(sceneInput, config.quizEnding);
+    const scenes = prepareQuizScenes(sceneInput, config);
     const id = cuid();
     this.queue.push({
       sceneInput: scenes,
@@ -437,7 +441,7 @@ export class ShortCreator {
       return null;
     }
     try {
-      return fs.readJsonSync(metaPath) as VideoPostMeta;
+      return hydrateVideoPostMeta(fs.readJsonSync(metaPath) as VideoPostMeta);
     } catch (error: unknown) {
       logger.error({ error, videoId }, "Failed to read video meta");
       return null;

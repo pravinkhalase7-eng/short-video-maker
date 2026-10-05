@@ -5,6 +5,8 @@ import {
   pinTopicSearchTerms,
   scriptLimits,
   PromptScriptGenerator,
+  prepareQuizScenes,
+  normalizeExampleCard,
 } from "./PromptScriptGenerator";
 import {
   MusicMoodEnum,
@@ -12,7 +14,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, isQuizTimeUpCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL, snippetCodeFromText, snippetFilename } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, isQuizTimeUpCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, cardLooksLikeQuiz, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL, snippetCodeFromText, snippetFilename } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -646,6 +648,29 @@ test("quiz videos skip Pexels and use a hardcoded worksheet", () => {
       { exampleCard: { kind: "quiz" } },
     ]),
   ).toBe(true);
+  const codeQuizCard = {
+    kind: "code" as const,
+    title: "Snippet",
+    body: "print(1)\nA) 1\nB) 2\nC) 3\nD) 4",
+  };
+  expect(cardLooksLikeQuiz(codeQuizCard)).toBe(true);
+  expect(usesHardcodedWorksheet({ format: "story" }, [{ exampleCard: codeQuizCard }])).toBe(
+    true,
+  );
+  expect(isQuizQuestionCard(codeQuizCard)).toBe(true);
+  expect(normalizeExampleCard(codeQuizCard)?.kind).toBe("quiz");
+  expect(
+    prepareQuizScenes(
+      [
+        {
+          text: "What is the output?",
+          searchTerms: ["python"],
+          exampleCard: codeQuizCard,
+        },
+      ],
+      { format: "quiz" },
+    )[0].exampleCard?.kind,
+  ).toBe("quiz");
 });
 
 test("quiz cards are detected for countdown and answer freeze", () => {

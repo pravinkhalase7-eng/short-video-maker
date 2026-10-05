@@ -66,7 +66,7 @@ export const exampleCardInput = z.object({
   body: z
     .string()
     .min(1)
-    .max(640)
+    .max(1200)
     .describe(
       "Code, a 2-6 word fact, or a quiz: question, optional snippet, then A/B/C outputs",
     ),

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { buildInstagramPost } from "./instagramPost";
+import { buildInstagramPost, hydrateVideoPostMeta } from "./instagramPost";
 
 test("quiz posts get a title, explanation, and five hashtags", () => {
   const post = buildInstagramPost({
@@ -41,12 +41,16 @@ test("quiz posts get a title, explanation, and five hashtags", () => {
   expect(post.caption.toLowerCase()).toMatch(/comment/);
   expect(post.instagramText.match(/What is the output\?/gi) || []).toHaveLength(1);
   expect(post.instagramText).not.toMatch(/\n{3,}/);
+  expect(post.youtubeTitle.length).toBeLessThanOrEqual(100);
+  expect(post.youtubeTitle).toMatch(/#python|#codingquiz|#programming/i);
+  expect(post.youtubeDescription).toMatch(/answer is C/i);
+  expect(post.youtubeDescription).toContain(post.hashtags.join(" "));
 });
 
-test("timeup quiz posts keep the caption spoiler-free", () => {
+test("timeup quiz posts keep the on-video caption spoiler-free but copy the answer", () => {
   const post = buildInstagramPost({
     id: "timeup",
-    prompt: "What is the output?\nprint(1)\nA) 1\nB) 2",
+    prompt: "What is the output?\nprint(1)\nA) 1 ✅\nB) 2",
     scenes: [
       {
         text: "What is the output? Lock your guess.",
@@ -54,7 +58,7 @@ test("timeup quiz posts keep the caption spoiler-free", () => {
         exampleCard: {
           kind: "quiz",
           title: "Python Quiz",
-          body: "What is the output?\nprint(1)\nA) 1\nB) 2\nC) 0\nD) Error",
+          body: "What is the output?\nprint(1)\nA) 1 ✅\nB) 2\nC) 0\nD) Error",
         },
       },
       {
@@ -64,7 +68,7 @@ test("timeup quiz posts keep the caption spoiler-free", () => {
         exampleCard: {
           kind: "quiz",
           title: "Python Quiz",
-          body: "What is the output?\nprint(1)\nA) 1\nB) 2\nC) 0\nD) Error",
+          body: "What is the output?\nprint(1)\nA) 1 ✅\nB) 2\nC) 0\nD) Error",
         },
       },
     ],
@@ -72,7 +76,10 @@ test("timeup quiz posts keep the caption spoiler-free", () => {
   });
 
   expect(post.caption.toLowerCase()).toMatch(/time's up/);
-  expect(post.instagramText).not.toMatch(/answer is [A-D]/i);
+  expect(post.caption).not.toMatch(/answer is [A-D]/i);
+  expect(post.instagramText).toMatch(/answer is A/i);
+  expect(post.youtubeTitle.length).toBeLessThanOrEqual(100);
+  expect(post.youtubeDescription).toMatch(/answer is A/i);
 });
 
 test("set intersection quizzes explain the operator and the traps", () => {
@@ -211,4 +218,25 @@ test("provided LLM explanation wins over the heuristic fallback", () => {
 
   expect(post.explanation).toMatch(/Star on a list copies/);
   expect(post.explanation).toMatch(/usual trap/);
+});
+
+test("hydrate rebuilds Instagram and YouTube copy from the saved explanation", () => {
+  const hydrated = hydrateVideoPostMeta({
+    id: "old",
+    prompt: "quiz",
+    createdAt: "2026-01-01",
+    title: "PYTHON Quiz: What is the output?",
+    caption: "Time's up. Comment A, B, C, or D. Follow for more.",
+    explanation: "The answer is C. is compares identity, not values.",
+    hashtags: ["#python", "#codingquiz", "#programming", "#techtok", "#100daysofcode"],
+    instagramText: "PYTHON Quiz: What is the output?\n\nTime's up.",
+    youtubeTitle: "",
+    youtubeDescription: "",
+  });
+
+  expect(hydrated.instagramText).toMatch(/answer is C/i);
+  expect(hydrated.youtubeTitle.length).toBeLessThanOrEqual(100);
+  expect(hydrated.youtubeTitle).toMatch(/#python|#codingquiz/i);
+  expect(hydrated.youtubeDescription).toMatch(/answer is C/i);
+  expect(hydrated.youtubeDescription).toContain("#python");
 });

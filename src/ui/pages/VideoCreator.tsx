@@ -302,10 +302,13 @@ const VideoCreator: React.FC = () => {
         ? {
             title: scene.exampleCardTitle.trim() || undefined,
             body: scene.exampleCardBody.trim(),
-            kind: inferCardKind(
-              scene.exampleCardTitle,
-              scene.exampleCardBody,
-            ),
+            kind:
+              config.format === "quiz"
+                ? "quiz"
+                : inferCardKind(
+                    scene.exampleCardTitle,
+                    scene.exampleCardBody,
+                  ),
           }
         : undefined,
     }));

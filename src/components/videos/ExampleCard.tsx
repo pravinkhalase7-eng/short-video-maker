@@ -3,7 +3,7 @@ import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 import { loadFont as loadRowdies } from "@remotion/google-fonts/Rowdies";
 import { loadFont as loadNunito } from "@remotion/google-fonts/Nunito";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
-import { looksLikeCode, parseQuizSheet, quizSeriesHeadline, INSTAGRAM_REEL } from "../utils";
+import { cardLooksLikeQuiz, looksLikeCode, parseQuizSheet, quizSeriesHeadline, INSTAGRAM_REEL } from "../utils";
 import { vnEnter, vnTransform } from "./VnMotion";
 
 const { fontFamily } = loadFont();
@@ -51,7 +51,7 @@ export const ExampleCardOverlay: React.FC<{
   }
 
   const kind =
-    card.kind === "quiz"
+    card.kind === "quiz" || cardLooksLikeQuiz(card)
       ? "quiz"
       : looksLikeCode(body)
         ? "code"
