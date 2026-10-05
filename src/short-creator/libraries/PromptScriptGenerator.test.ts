@@ -502,6 +502,40 @@ test("pasted quiz generate returns the worksheet without waiting on Gemini", asy
   expect(result.scenes[0].exampleCard?.body).toContain("y.append(4)");
 });
 
+const PASTED_ALIAS_TRAP_QUIZ = `What is the output?
+
+a = [1, 2, 3]
+b = a
+b.append(4)
+print(a)
+
+A) [1, 2, 3]
+B) [4]
+C) [1, 2, 3, 4]
+D) Error
+
+Answer: C) [1, 2, 3, 4]`;
+
+test("list alias quizzes keep C even when B is the trap [4]", () => {
+  const sheet = parsePastedQuiz(PASTED_ALIAS_TRAP_QUIZ);
+  expect(sheet?.answer).toBe("C");
+  const result = generateLocalScript(PASTED_ALIAS_TRAP_QUIZ, {
+    targetDurationSec: 30,
+    format: "quiz",
+  });
+  expect(result.scenes[1].overlayText).toBe("C");
+  expect(result.scenes[1].text).toMatch(/answer is C/i);
+});
+
+test("list alias quizzes still solve C when python is skipped", () => {
+  const skipped = `${PASTED_ALIAS_TRAP_QUIZ.replace(/\nAnswer:.*/s, "")}\n# import`;
+  const result = generateLocalScript(skipped, {
+    targetDurationSec: 30,
+    format: "quiz",
+  });
+  expect(result.scenes[1].overlayText).toBe("C");
+});
+
 const PASTED_THEORY_QUIZ = `5. Which one is a Python list?
 A) {1, 2, 3}
 B) (1, 2, 3)

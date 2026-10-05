@@ -1,15 +1,20 @@
 import { Config } from "../../config";
 import { logger } from "../../logger";
 import {
+  parsePastedQuiz,
   parseQuizSheet,
   quizInstagramExplanation,
 } from "../../components/utils";
 import type { RenderConfig, SceneInput } from "../../types/shorts";
 
+function quizLetter(value?: string | null): string {
+  const letter = (value || "").trim().toUpperCase();
+  return /^[A-D]$/.test(letter) ? letter : "";
+}
+
 export function quizFactsFromScenes({
   prompt,
   scenes,
-  config,
 }: {
   prompt?: string;
   scenes: SceneInput[];
@@ -28,14 +33,16 @@ export function quizFactsFromScenes({
   if (!quizCard?.body) {
     return null;
   }
-  const answer =
-    scenes
-      .find((scene) => /^[A-D]$/i.test(scene.overlayText || ""))
-      ?.overlayText?.toUpperCase() ||
-    scenes
-      .find((scene) => /^[A-D]$/i.test(scene.exampleCard?.title || ""))
-      ?.exampleCard?.title?.toUpperCase() ||
-    "";
+  const fromPrompt = quizLetter(parsePastedQuiz(prompt || "")?.answer);
+  const fromOverlay = quizLetter(
+    scenes.find((scene) => /^[A-D]$/i.test(scene.overlayText || ""))
+      ?.overlayText,
+  );
+  const fromTitle = quizLetter(
+    scenes.find((scene) => /^[A-D]$/i.test(scene.exampleCard?.title || ""))
+      ?.exampleCard?.title,
+  );
+  const answer = fromPrompt || fromOverlay || fromTitle;
   const sheet = parseQuizSheet({
     title: quizCard.title,
     body: quizCard.body,
@@ -44,7 +51,10 @@ export function quizFactsFromScenes({
   if (!sheet.options.length) {
     return null;
   }
-  const letter = (sheet.answer || answer || "B").toUpperCase();
+  const letter = quizLetter(fromPrompt || sheet.answer || answer);
+  if (!letter) {
+    return null;
+  }
   const winning =
     sheet.options.find((option) => option.letter === letter)?.text || "";
   const heuristic = quizInstagramExplanation({

@@ -240,3 +240,40 @@ test("hydrate rebuilds Instagram and YouTube copy from the saved explanation", (
   expect(hydrated.youtubeDescription).toMatch(/answer is C/i);
   expect(hydrated.youtubeDescription).toContain("#python");
 });
+
+test("hydrate prefers the pasted Answer: C over a saved B explanation", () => {
+  const prompt = `What is the output?
+
+a = [1, 2, 3]
+b = a
+
+b.append(4)
+
+print(a)
+
+A) [1, 2, 3]
+B) [4]
+C) [1, 2, 3, 4]
+D) Error
+
+Answer: C) [1, 2, 3, 4]`;
+  const hydrated = hydrateVideoPostMeta({
+    id: "cmun797vo00090qnu3obm65p0",
+    prompt,
+    format: "quiz",
+    createdAt: "2026-09-29T21:40:04.624Z",
+    title: "PYTHON Quiz: What is the output?",
+    caption: "Time's up. Comment A, B, C, or D. Follow for more.",
+    explanation:
+      "The answer is B. The code creates a list named a and makes variable b point to that same list. Appending the number 4 updates the list so that printing variable a outputs [4]. Option C is the most tempting wrong answer because people assume the list keeps its original numbers 1, 2, and 3 alongside the new number.",
+    hashtags: ["#python", "#learnpython", "#codingquiz", "#programming", "#techtok"],
+    instagramText: "The answer is B.",
+    youtubeTitle: "",
+    youtubeDescription: "",
+  });
+
+  expect(hydrated.explanation).toMatch(/answer is C/i);
+  expect(hydrated.explanation).toMatch(/\[1, 2, 3, 4\]/);
+  expect(hydrated.explanation).not.toMatch(/outputs \[4\]/);
+  expect(hydrated.instagramText).toMatch(/answer is C/i);
+});

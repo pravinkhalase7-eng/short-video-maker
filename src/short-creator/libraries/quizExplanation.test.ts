@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import {
   llmQuizExplanation,
   quizExplanationPrompt,
+  quizFactsFromScenes,
   sanitizeQuizExplanation,
 } from "./quizExplanation";
 
@@ -42,4 +43,46 @@ test("explanation generation refuses to skip Gemini", async () => {
       },
     ),
   ).rejects.toThrow(/GEMINI_API_KEY/);
+});
+
+test("timeup overlay does not default the caption letter to B when the prompt marked C", () => {
+  const prompt = `What is the output?
+
+a = [1, 2, 3]
+b = a
+b.append(4)
+print(a)
+A) [1, 2, 3]
+B) [4]
+C) [1, 2, 3, 4]
+D) Error
+Answer: C) [1, 2, 3, 4]`;
+  const body = `What is the output?
+a = [1, 2, 3]
+b = a
+b.append(4)
+print(a)
+A) [1, 2, 3]
+B) [4]
+C) [1, 2, 3, 4]
+D) Error`;
+  const facts = quizFactsFromScenes({
+    prompt,
+    scenes: [
+      {
+        text: "What is the output? Lock your guess.",
+        searchTerms: ["python"],
+        exampleCard: { kind: "quiz", title: "Python Quiz", body },
+      },
+      {
+        text: "Time's up. Comment A, B, C, or D. Follow for more.",
+        searchTerms: ["python"],
+        overlayText: "TIMEUP",
+        exampleCard: { kind: "quiz", title: "Quiz", body },
+      },
+    ],
+    config: { format: "quiz", quizEnding: "timeup" },
+  });
+  expect(facts?.answer).toBe("C");
+  expect(facts?.winning).toBe("[1, 2, 3, 4]");
 });

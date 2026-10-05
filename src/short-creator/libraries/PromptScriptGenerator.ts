@@ -247,12 +247,12 @@ function buildSystemPrompt(options: NormalizedScriptOptions): string {
 - The on-screen card is a catchy quiz card: a title, one question, optional snippet, and labeled options A B C D.
 - Question scene: tell the viewer to read the snippet and pick an output. Do NOT read the code or the option values aloud. exampleCard.kind is "quiz". title is "{Topic} Quiz" (not Q1). holdMs is ${limits.holdMs}. Do not set overlayText.
 - If the user pasted a complete question with a snippet and A B C D choices, use THAT worksheet verbatim. Do not invent a different question or snippet. Only solve it: scene 2 title is the correct letter, and the spoken answer explains why that output happens.
-- PROGRAMMING / CODE TOPICS (Java, Python, JavaScript, lambdas, streams, SQL, APIs): do NOT ask a theory question. Show a short real snippet (2-5 lines, no markdown fences) and ask "What is the output?" Options must be four possible outputs A B C D, including one common trap. Spoken question text MUST be "What is the output? Lock your guess. Comment A, B, C, or D." Never say "read this snippet", "like an editor", the option values, the code, or extra snippet words. Spoken answer text: "The answer is B. Did you fall for the trap? Check the caption below. Follow for more." Do not speak a hint.
+- PROGRAMMING / CODE TOPICS (Java, Python, JavaScript, lambdas, streams, SQL, APIs): do NOT ask a theory question. Show a short real snippet (2-5 lines, no markdown fences) and ask "What is the output?" Options must be four possible outputs A B C D, including one common trap. Spoken question text MUST be "What is the output? Lock your guess. Comment A, B, C, or D." Never say "read this snippet", "like an editor", the option values, the code, or extra snippet words. Spoken answer text uses the real winning letter, e.g. "The answer is C. Did you fall for the trap? Check the caption below. Follow for more." Do not speak a hint. Never default the letter to B.
 - exampleCard body lines:
   1) the question, e.g. "What is the output?"
   2-6) the code snippet if this is a program quiz. Put each statement on its own line. Never start a code line with "A." unless it is the option "A) ..."
   then "A) ...", "B) ...", "C) ...", "D) ..." as the output choices. Always include the letter and a space after it.
-- Answer scene: "The answer is B. Did you fall for the trap? Check the caption below. Follow for more." Do not speak a hint or the why. exampleCard.kind is "quiz", title is the winning letter only (A, B, C, or D). body is the SAME worksheet lines as the question scene. overlayText is the letter. holdMs is 0.
+- Answer scene: "The answer is {letter}. Did you fall for the trap? Check the caption below. Follow for more." Use the solved letter, not a placeholder B. Do not speak a hint or the why. exampleCard.kind is "quiz", title is the winning letter only (A, B, C, or D). body is the SAME worksheet lines as the question scene. overlayText is the letter. holdMs is 0.
 - For non-programming topics, a single fact question with A B C D is fine.
 - Do NOT set hookText. The first frame is the question card. Options A B C D appear one by one.
 - music: funny (quirky quiz energy). Do not use chill unless the user asks for chill.
@@ -1258,6 +1258,7 @@ function normalizeQuizValue(value: string): string {
   return value
     .trim()
     .replace(/^['"]|['"]$/g, "")
+    .replace(/\s*,\s*/g, ",")
     .replace(/\s+/g, " ")
     .toLowerCase();
 }
@@ -1326,13 +1327,13 @@ function heuristicPastedAnswer(sheet: NonNullable<ReturnType<typeof parsePastedQ
     append[1] === alias[1] &&
     (printed[1] === listLiteral[1] || printed[1] === alias[1])
   ) {
-    const original = normalizeQuizValue(listLiteral[2]);
-    const mutated = sheet.options.find(
-      (option) =>
-        /^\s*\[/.test(option.text) &&
-        normalizeQuizValue(option.text) !== original &&
-        !/error/i.test(option.text),
-    );
+    const expected = listAfterAppend(listLiteral[2], append[2]);
+    const mutated = expected
+      ? sheet.options.find(
+          (option) =>
+            normalizeQuizValue(option.text) === normalizeQuizValue(expected),
+        )
+      : undefined;
     if (mutated && /^[A-D]$/.test(mutated.letter)) {
       return {
         answer: mutated.letter as "A" | "B" | "C" | "D",
@@ -1340,12 +1341,25 @@ function heuristicPastedAnswer(sheet: NonNullable<ReturnType<typeof parsePastedQ
       };
     }
   }
-  const fallback =
-    sheet.options.find((option) => option.letter === "B") || sheet.options[0];
+  const fallback = sheet.options[0];
   return {
     answer: (fallback?.letter as "A" | "B" | "C" | "D") || "B",
     explain: explainPastedQuiz(sheet, fallback?.text || "that output"),
   };
+}
+
+function listAfterAppend(literal: string, value: string): string | null {
+  const trimmed = literal.trim();
+  if (!trimmed.startsWith("[")) {
+    return null;
+  }
+  const inner = trimmed.replace(/^\[/, "").replace(/\]$/, "");
+  const items = inner
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  items.push(value.trim());
+  return `[${items.join(", ")}]`;
 }
 
 function explainPastedQuiz(
@@ -1372,8 +1386,13 @@ function applyProgrammingQuizSpeech(scenes: SceneInput[]): SceneInput[] {
     if (isAnswer) {
       const letter =
         scene.exampleCard.title?.toUpperCase().match(/^[A-D]$/)?.[0] ||
+        scene.overlayText?.toUpperCase().match(/^[A-D]$/)?.[0] ||
         scene.text.match(/answer is ([A-D])/i)?.[1]?.toUpperCase() ||
-        "B";
+        sheet.answer ||
+        "";
+      if (!letter) {
+        return scene;
+      }
       return { ...scene, text: quizAnswerSpeech(letter) };
     }
     if (!sheet.code) {
@@ -1527,7 +1546,7 @@ function fillMissingQuizCards(
     }
     return {
       ...scene,
-      overlayText: scene.overlayText || "B",
+      overlayText: scene.overlayText || fallback?.answer,
       exampleCard: {
         kind: "quiz",
         title: heading,

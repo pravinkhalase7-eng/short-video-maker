@@ -1,4 +1,5 @@
 import {
+  parsePastedQuiz,
   parseQuizSheet,
   quizInstagramExplanation,
   quizSeriesBadge,
@@ -49,15 +50,21 @@ export function buildInstagramPost({
   const title = isQuiz
     ? quizTitle(sheet, quizCard?.title)
     : storyTitle(config?.hookText, promptText, scenes[0]?.text);
-  const answerLetter = quizAnswerLetter(sheet, scenes);
+  const markedAnswer = quizLetter(parsePastedQuiz(promptText)?.answer);
+  const answerLetter = markedAnswer || quizAnswerLetter(sheet, scenes);
   const generated = isQuiz && sheet
     ? quizInstagramExplanation({
         ...sheet,
         answer: answerLetter || sheet.answer,
       })
     : storyExplanation(scenes);
+  const provided = providedExplanation?.replace(/\s+/g, " ").trim() || "";
+  const providedMatches =
+    !answerLetter ||
+    !provided ||
+    new RegExp(`answer is ${answerLetter}\\b`, "i").test(provided);
   const explanation = withAnswerLead(
-    providedExplanation?.replace(/\s+/g, " ").trim() || generated,
+    (providedMatches ? provided : "") || generated,
     answerLetter,
   );
   const hideAnswerOnVideo = config?.quizEnding === "timeup";
@@ -103,6 +110,11 @@ function compactInstagramText(parts: string[]): string {
     .join("\n\n");
 }
 
+function quizLetter(value?: string | null): string {
+  const letter = (value || "").trim().toUpperCase();
+  return /^[A-D]$/.test(letter) ? letter : "";
+}
+
 function quizAnswerLetter(
   sheet: ReturnType<typeof parseQuizSheet> | null,
   scenes: SceneInput[],
@@ -146,7 +158,17 @@ export function youtubeTitleWithHashtags(
 
 export function hydrateVideoPostMeta(meta: VideoPostMeta): VideoPostMeta {
   const hashtags = meta.hashtags || [];
-  const explanation = (meta.explanation || "").trim();
+  const pasted = parsePastedQuiz(meta.prompt || "");
+  const marked = quizLetter(pasted?.answer);
+  let explanation = (meta.explanation || "").trim();
+  if (
+    marked &&
+    pasted &&
+    (!explanation ||
+      !new RegExp(`answer is ${marked}\\b`, "i").test(explanation))
+  ) {
+    explanation = quizInstagramExplanation({ ...pasted, answer: marked });
+  }
   const instagramText = compactInstagramText([
     meta.title || "",
     meta.caption || "",
