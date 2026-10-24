@@ -15,6 +15,8 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import DownloadIcon from "@mui/icons-material/Download";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { CodeSnippetPreview } from "../components/CodeSnippetPreview";
+import { resolveVoiceoverScript } from "../../short-creator/libraries/instagramPost";
 import { VideoStatus } from "../../types/shorts";
 
 type VideoDetailsData = {
@@ -29,6 +31,14 @@ type VideoDetailsData = {
   instagramText?: string;
   youtubeTitle?: string;
   youtubeDescription?: string;
+  voiceoverScript?: string;
+  sceneTexts?: string[];
+  snippets?: {
+    sceneIndex: number;
+    title: string;
+    filename: string;
+    code: string;
+  }[];
 };
 
 function processingMessage(progress?: number, format?: string): string {
@@ -143,6 +153,15 @@ const VideoDetails: React.FC = () => {
       .join("\n\n");
   };
 
+  const voiceoverCopy = () =>
+    resolveVoiceoverScript({
+      voiceoverScript: details?.voiceoverScript,
+      sceneTexts: details?.sceneTexts,
+      caption: details?.caption,
+      explanation: details?.explanation,
+      format: details?.format,
+    });
+
   const handleCopy = async (text: string, message: string) => {
     const value = text.trim();
     if (!value) {
@@ -151,6 +170,33 @@ const VideoDetails: React.FC = () => {
     await navigator.clipboard.writeText(value);
     setCopiedMessage(message);
     setCopied(true);
+  };
+
+  const renderVoiceover = () => {
+    const script = voiceoverCopy();
+    if (!script) {
+      return null;
+    }
+    return (
+      <Paper variant="outlined" sx={{ p: 2.5, mb: 3, textAlign: "left" }}>
+        <Typography variant="h6" sx={{ mb: 1 }}>
+          Voiceover script
+        </Typography>
+        <Typography
+          variant="body1"
+          sx={{ whiteSpace: "pre-wrap", mb: 2 }}
+        >
+          {script}
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<ContentCopyIcon />}
+          onClick={() => handleCopy(script, "Copied voiceover script.")}
+        >
+          Copy voiceover script
+        </Button>
+      </Paper>
+    );
   };
 
   const renderPostPack = () => {
@@ -190,6 +236,41 @@ const VideoDetails: React.FC = () => {
               {details.prompt}
             </Typography>
           </>
+        ) : null}
+        {details.snippets?.length ? (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Code snippets
+            </Typography>
+            <Grid container spacing={2}>
+              {details.snippets.map((snippet) => (
+                <Grid
+                  item
+                  xs={12}
+                  md={6}
+                  key={`meta-snippet-${snippet.sceneIndex}`}
+                >
+                  <CodeSnippetPreview
+                    title={`Scene ${snippet.sceneIndex + 1} · ${snippet.title}`}
+                    filename={snippet.filename}
+                    code={snippet.code}
+                  />
+                  {status === "ready" ? (
+                    <Button
+                      size="small"
+                      sx={{ mt: 1 }}
+                      startIcon={<DownloadIcon />}
+                      component="a"
+                      href={`/api/short-video/${videoId}/snippet/${snippet.sceneIndex}`}
+                      download={`${snippet.filename.replace(/\.\w+$/, "")}-scene-${snippet.sceneIndex + 1}.png`}
+                    >
+                      Download PNG
+                    </Button>
+                  ) : null}
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
         ) : null}
         {details.caption ? (
           <>
@@ -250,7 +331,7 @@ const VideoDetails: React.FC = () => {
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
           {packCopy() ? (
             <Button
-              variant="contained"
+              variant="outlined"
               startIcon={<ContentCopyIcon />}
               onClick={() =>
                 handleCopy(packCopy(), "Copied. Paste it into Instagram.")
@@ -314,6 +395,7 @@ const VideoDetails: React.FC = () => {
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
             {processingMessage(progress, details?.format)}
           </Typography>
+          {renderVoiceover()}
           {renderPostPack()}
         </Box>
       );
@@ -352,6 +434,7 @@ const VideoDetails: React.FC = () => {
             />
           </Box>
 
+          {renderVoiceover()}
           {renderPostPack()}
 
           <Box textAlign="center">

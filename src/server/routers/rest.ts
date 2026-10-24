@@ -326,6 +326,37 @@ export class APIRouter {
     );
 
     this.router.get(
+      "/short-video/:videoId/snippet/:sceneIndex",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        const { videoId, sceneIndex } = req.params;
+        const index = Number(sceneIndex);
+        if (!videoId || !Number.isInteger(index) || index < 0) {
+          res.status(400).json({
+            error: "videoId and sceneIndex are required",
+          });
+          return;
+        }
+        try {
+          const filePath = await this.shortCreator.getSnippetPng(
+            videoId,
+            index,
+          );
+          res.setHeader("Content-Type", "image/png");
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${videoId}-snippet-${index}.png"`,
+          );
+          this.sendLocalAsset(res, filePath, "Snippet image not found");
+        } catch (error: unknown) {
+          logger.error(error, "Error getting snippet image");
+          res.status(404).json({
+            error: "Snippet image not found",
+          });
+        }
+      },
+    );
+
+    this.router.get(
       "/short-video/:videoId",
       (req: ExpressRequest, res: ExpressResponse) => {
         try {

@@ -54,6 +54,7 @@ export const shortVideoSchema = z.object({
     quizAnswerPoster: z.string().optional(),
     showCaptions: z.boolean().optional(),
     transitionSfx: z.boolean().optional(),
+    showCodeSnippets: z.boolean().optional(),
     sfx: z
       .object({
         whoosh: z.string(),
@@ -664,6 +665,35 @@ export function captionsFromSpeech(
   });
 }
 
+export function overlayHitFrame({
+  captions,
+  needle,
+  fps,
+  audioDelayFrames = 0,
+  leadFrames = 0,
+}: {
+  captions?: { text: string; startMs: number }[];
+  needle?: string;
+  fps: number;
+  audioDelayFrames?: number;
+  leadFrames?: number;
+}): number {
+  const words = captions || [];
+  const want = (needle || "").toLowerCase().replace(/[^a-z0-9%]/g, "");
+  let startMs = words[0]?.startMs ?? 0;
+  if (want) {
+    const hit = words.find((word) => {
+      const token = word.text.toLowerCase().replace(/[^a-z0-9%]/g, "");
+      return Boolean(token) && (token === want || token.includes(want) || want.includes(token));
+    });
+    if (hit) {
+      startMs = hit.startMs;
+    }
+  }
+  const frame = audioDelayFrames + Math.round((startMs / 1000) * fps);
+  return Math.max(0, frame - Math.max(0, leadFrames));
+}
+
 function wordSpeechWeight(word: string): number {
   const clean = word.toLowerCase().replace(/[^a-z0-9%']/g, "");
   const letters = Math.max(1, clean.length);
@@ -721,6 +751,53 @@ export function getOverlayTiming({
     endCardFrom: totalFrames - endCardFrames,
     endCardFrames,
   };
+}
+
+export type CodeSnippetAsset = {
+  sceneIndex: number;
+  title: string;
+  filename: string;
+  code: string;
+};
+
+export function isStoryCodeCard(card?: {
+  kind?: string;
+  title?: string;
+  body?: string;
+}): boolean {
+  if (!card?.body?.trim() || cardLooksLikeQuiz(card)) {
+    return false;
+  }
+  return card.kind === "code" || looksLikeCode(card.body);
+}
+
+export function codeSnippetsFromScenes(
+  scenes: {
+    exampleCard?: { kind?: string; title?: string; body?: string };
+  }[],
+): CodeSnippetAsset[] {
+  return scenes.flatMap((scene, sceneIndex) => {
+    const body = scene.exampleCard?.body?.trim() || "";
+    if (!body) {
+      return [];
+    }
+    const code = cardLooksLikeQuiz(scene.exampleCard)
+      ? snippetCodeFromText(body)
+      : isStoryCodeCard(scene.exampleCard)
+        ? snippetCodeFromText(body) || body
+        : "";
+    if (!code.trim()) {
+      return [];
+    }
+    return [
+      {
+        sceneIndex,
+        title: scene.exampleCard?.title?.trim() || `Scene ${sceneIndex + 1}`,
+        filename: snippetFilename(code),
+        code,
+      },
+    ];
+  });
 }
 
 export function looksLikeCode(text: string): boolean {

@@ -1,4 +1,5 @@
 import {
+  codeSnippetsFromScenes,
   parsePastedQuiz,
   parseQuizSheet,
   quizInstagramExplanation,
@@ -18,6 +19,14 @@ export type VideoPostMeta = {
   instagramText: string;
   youtubeTitle: string;
   youtubeDescription: string;
+  voiceoverScript?: string;
+  sceneTexts?: string[];
+  snippets?: {
+    sceneIndex: number;
+    title: string;
+    filename: string;
+    code: string;
+  }[];
 };
 
 export const YOUTUBE_TITLE_MAX = 100;
@@ -87,6 +96,7 @@ export function buildInstagramPost({
     explanation,
     hashtags.join(" "),
   ]).slice(0, YOUTUBE_DESCRIPTION_MAX);
+  const voiceoverScript = voiceoverScriptFromScenes(scenes);
 
   return {
     id,
@@ -100,7 +110,62 @@ export function buildInstagramPost({
     instagramText,
     youtubeTitle,
     youtubeDescription,
+    voiceoverScript,
+    sceneTexts: sceneTextsFromScenes(scenes),
+    snippets: codeSnippetsFromScenes(scenes),
   };
+}
+
+export function sceneTextsFromScenes(scenes: SceneInput[]): string[] {
+  return scenes
+    .map((scene) => (scene.text || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+export function voiceoverScriptFromScenes(scenes: SceneInput[]): string {
+  return sceneTextsFromScenes(scenes).join("\n\n");
+}
+
+export function resolveVoiceoverScript(meta: {
+  voiceoverScript?: string;
+  sceneTexts?: string[];
+  caption?: string;
+  explanation?: string;
+  format?: string;
+}): string {
+  const saved = (meta.voiceoverScript || "").trim();
+  if (saved) {
+    return saved;
+  }
+  const fromScenes = (meta.sceneTexts || [])
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n\n");
+  if (fromScenes) {
+    return fromScenes;
+  }
+  const first = spokenFromCaption(meta.caption || "", meta.format);
+  const last = (meta.explanation || "").replace(/\s+/g, " ").trim();
+  if (first && last && first !== last) {
+    return `${first}\n\n${last}`;
+  }
+  return first || last;
+}
+
+function spokenFromCaption(caption: string, format?: string): string {
+  const text = caption.replace(/\s+/g, " ").trim();
+  if (!text) {
+    return "";
+  }
+  if (format === "quiz") {
+    return text
+      .replace(
+        /\s*(Time's up\. Comment A, B, C, or D\. Follow for more\.|Comment A, B, C, or D before you scroll\. Follow for more traps\.)\s*$/i,
+        "",
+      )
+      .trim();
+  }
+  return text.replace(/\s*Follow for more\.?\s*$/i, "").trim();
 }
 
 function compactInstagramText(parts: string[]): string {
@@ -187,6 +252,12 @@ export function hydrateVideoPostMeta(meta: VideoPostMeta): VideoPostMeta {
       explanation,
       hashtags.join(" "),
     ]).slice(0, YOUTUBE_DESCRIPTION_MAX),
+    sceneTexts: meta.sceneTexts || [],
+    voiceoverScript: resolveVoiceoverScript({
+      ...meta,
+      explanation,
+    }),
+    snippets: meta.snippets || [],
   };
 }
 

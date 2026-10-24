@@ -14,7 +14,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, isQuizTimeUpCard, captionsFromSpeech, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, cardLooksLikeQuiz, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL, snippetCodeFromText, snippetFilename } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, isQuizTimeUpCard, captionsFromSpeech, overlayHitFrame, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, cardLooksLikeQuiz, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL, snippetCodeFromText, snippetFilename, codeSnippetsFromScenes } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -667,6 +667,53 @@ test("captionsFromSpeech follows the detected speech window", () => {
   });
   expect(captions[0].startMs).toBe(200);
   expect(captions[2].endMs).toBe(1600);
+});
+
+test("story code cards become downloadable snippet assets", () => {
+  const snippets = codeSnippetsFromScenes([
+    {
+      exampleCard: {
+        kind: "code",
+        title: "BAD",
+        body: "def f(x=[]):\n    x.append(1)\n    return x",
+      },
+    },
+    {
+      exampleCard: {
+        kind: "fact",
+        title: "NONE",
+        body: "Use None as the default",
+      },
+    },
+  ]);
+  expect(snippets).toHaveLength(1);
+  expect(snippets[0].filename).toBe("main.py");
+  expect(snippets[0].code).toContain("def f(x=[]):");
+});
+
+test("overlay hits land on the spoken word instead of a fixed delay", () => {
+  const captions = [
+    { text: "You", startMs: 200 },
+    { text: "defined", startMs: 400 },
+    { text: "None", startMs: 1200 },
+  ];
+  expect(
+    overlayHitFrame({
+      captions,
+      needle: "None",
+      fps: 25,
+      audioDelayFrames: 55,
+      leadFrames: 6,
+    }),
+  ).toBe(79);
+  expect(
+    overlayHitFrame({
+      captions,
+      fps: 25,
+      audioDelayFrames: 55,
+      leadFrames: 6,
+    }),
+  ).toBe(54);
 });
 
 test("quiz videos skip Pexels and use a hardcoded worksheet", () => {

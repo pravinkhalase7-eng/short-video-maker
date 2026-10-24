@@ -229,6 +229,12 @@ export const renderConfig = z.object({
     .describe(
       "When true, play whoosh/sting hits on scene cuts and the end card. Off by default.",
     ),
+  showCodeSnippets: z
+    .boolean()
+    .optional()
+    .describe(
+      "When false, story videos skip on-screen code windows. Snippet images are still saved. On by default.",
+    ),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 

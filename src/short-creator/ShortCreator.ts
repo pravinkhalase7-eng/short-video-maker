@@ -374,6 +374,7 @@ export class ShortCreator {
           format: config.format,
           quizEnding: config.quizEnding,
           showCaptions: config.showCaptions === true,
+          showCodeSnippets: config.showCodeSnippets !== false,
           transitionSfx: config.transitionSfx === true,
           endCardBeats: (() => {
             const beats = (config.endCardBeats || [])
@@ -419,6 +420,7 @@ export class ShortCreator {
       { videoId, ms: Date.now() - renderStarted },
       "Remotion render finished",
     );
+    await this.saveSnippetPngs(videoId);
 
     for (const file of tempFiles) {
       fs.removeSync(file);
@@ -478,6 +480,52 @@ export class ShortCreator {
     return path.join(this.config.videosDirPath, `${videoId}.json`);
   }
 
+  public getSnippetPath(videoId: string, sceneIndex: number): string {
+    return path.join(
+      this.config.videosDirPath,
+      `${videoId}-snippet-${sceneIndex}.png`,
+    );
+  }
+
+  public async getSnippetPng(
+    videoId: string,
+    sceneIndex: number,
+  ): Promise<string> {
+    const dest = this.getSnippetPath(videoId, sceneIndex);
+    if (fs.existsSync(dest)) {
+      return dest;
+    }
+    const snippet = this.getVideoMeta(videoId)?.snippets?.find(
+      (item) => item.sceneIndex === sceneIndex,
+    );
+    if (!snippet?.code?.trim()) {
+      throw new Error(`Snippet ${sceneIndex} for ${videoId} not found`);
+    }
+    await fs.ensureDir(this.config.videosDirPath);
+    await this.remotion.renderCodeSnippetStill(
+      {
+        code: snippet.code,
+        filename: snippet.filename,
+      },
+      dest,
+    );
+    return dest;
+  }
+
+  private async saveSnippetPngs(videoId: string): Promise<void> {
+    const snippets = this.getVideoMeta(videoId)?.snippets || [];
+    for (const snippet of snippets) {
+      try {
+        await this.getSnippetPng(videoId, snippet.sceneIndex);
+      } catch (error: unknown) {
+        logger.error(
+          { error, videoId, sceneIndex: snippet.sceneIndex },
+          "Failed to save snippet PNG",
+        );
+      }
+    }
+  }
+
   public getVideoMeta(videoId: string): VideoPostMeta | null {
     const metaPath = this.getVideoMetaPath(videoId);
     if (!fs.existsSync(metaPath)) {
@@ -525,6 +573,16 @@ export class ShortCreator {
     const videoPath = this.getVideoPath(videoId);
     fs.removeSync(videoPath);
     fs.removeSync(this.getVideoMetaPath(videoId));
+    if (fs.existsSync(this.config.videosDirPath)) {
+      for (const file of fs.readdirSync(this.config.videosDirPath)) {
+        if (
+          file.startsWith(`${videoId}-snippet-`) &&
+          file.endsWith(".png")
+        ) {
+          fs.removeSync(path.join(this.config.videosDirPath, file));
+        }
+      }
+    }
     logger.debug({ videoId }, "Deleted video file");
   }
 
@@ -569,12 +627,14 @@ export class ShortCreator {
     status: VideoStatus;
     title?: string;
     prompt?: string;
+    createdAt?: string;
   }[] {
     const videos: {
       id: string;
       status: VideoStatus;
       title?: string;
       prompt?: string;
+      createdAt?: string;
     }[] = [];
 
     // Check if videos directory exists
@@ -608,25 +668,63 @@ export class ShortCreator {
       }
     }
 
-    return videos;
+    return videos.sort(compareVideosLatestFirst);
   }
 
   private withListMeta(
     videoId: string,
     status: VideoStatus,
-  ): { id: string; status: VideoStatus; title?: string; prompt?: string } {
+  ): {
+    id: string;
+    status: VideoStatus;
+    title?: string;
+    prompt?: string;
+    createdAt?: string;
+  } {
     const meta = this.getVideoMeta(videoId);
+    const createdMs = this.videoCreatedMs(videoId, meta?.createdAt);
     return {
       id: videoId,
       status,
       title: meta?.title,
       prompt: meta?.prompt,
+      createdAt: meta?.createdAt || new Date(createdMs).toISOString(),
     };
+  }
+
+  private videoCreatedMs(videoId: string, createdAt?: string): number {
+    if (createdAt) {
+      const parsed = Date.parse(createdAt);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    const videoPath = this.getVideoPath(videoId);
+    try {
+      if (fs.existsSync(videoPath)) {
+        return fs.statSync(videoPath).mtimeMs;
+      }
+    } catch {
+      // queued videos may not have a file yet
+    }
+    return Date.now();
   }
 
   public ListAvailableVoices(): string[] {
     return this.kokoro.listAvailableVoices();
   }
+}
+
+export function compareVideosLatestFirst(
+  a: { createdAt?: string; id: string },
+  b: { createdAt?: string; id: string },
+): number {
+  const newest =
+    (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0);
+  if (newest !== 0) {
+    return newest;
+  }
+  return b.id.localeCompare(a.id);
 }
 
 function speechBoundsFromWav(

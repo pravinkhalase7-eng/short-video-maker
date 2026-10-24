@@ -1,5 +1,9 @@
 import { expect, test } from "vitest";
-import { buildInstagramPost, hydrateVideoPostMeta } from "./instagramPost";
+import {
+  buildInstagramPost,
+  hydrateVideoPostMeta,
+  resolveVoiceoverScript,
+} from "./instagramPost";
 
 test("quiz posts get a title, explanation, and five hashtags", () => {
   const post = buildInstagramPost({
@@ -41,6 +45,10 @@ test("quiz posts get a title, explanation, and five hashtags", () => {
   expect(post.caption.toLowerCase()).toMatch(/comment/);
   expect(post.instagramText.match(/What is the output\?/gi) || []).toHaveLength(1);
   expect(post.instagramText).not.toMatch(/\n{3,}/);
+  expect(post.voiceoverScript).toContain("What is the output? Lock your guess.");
+  expect(post.voiceoverScript).toContain("The answer is C.");
+  expect(post.snippets?.[0]?.code).toContain("print(x == [1, 2, 3])");
+  expect(post.snippets?.[0]?.filename).toBe("main.py");
   expect(post.youtubeTitle.length).toBeLessThanOrEqual(100);
   expect(post.youtubeTitle).toMatch(/#python|#codingquiz|#programming/i);
   expect(post.youtubeDescription).toMatch(/answer is C/i);
@@ -295,4 +303,36 @@ test("story posts about AI do not get coding hashtags", () => {
   expect(post.hashtags).not.toContain("#coding");
   expect(post.hashtags).not.toContain("#100daysofcode");
   expect(post.hashtags).toContain("#shorts");
+  expect(post.voiceoverScript).toMatch(/hallucination/i);
+  expect(post.sceneTexts).toEqual([
+    "An AI hallucination happens when a model states something false with confidence.",
+  ]);
+});
+
+test("details can recover a voiceover script from older saved posts", () => {
+  expect(
+    resolveVoiceoverScript({
+      caption:
+        "You defined a Python function with an empty list as a default parameter, thinking it resets every time.\n\nFollow for more",
+      explanation:
+        "To fix this trap, set the default to None and initialize a new list inside the function instead.",
+      format: "story",
+    }),
+  ).toMatch(/empty list as a default parameter/i);
+  expect(
+    hydrateVideoPostMeta({
+      id: "old-story",
+      prompt: "default parameter in python",
+      createdAt: "2026-10-24T18:42:08.135Z",
+      title: "This Python default parameter trap",
+      caption:
+        "You defined a Python function with an empty list as a default parameter, thinking it resets every time.\n\nFollow for more",
+      explanation:
+        "To fix this trap, set the default to None and initialize a new list inside the function instead.",
+      hashtags: ["#python"],
+      instagramText: "",
+      youtubeTitle: "",
+      youtubeDescription: "",
+    }).voiceoverScript,
+  ).toMatch(/set the default to None/i);
 });

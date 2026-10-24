@@ -60,8 +60,8 @@ export const ExampleCardOverlay: React.FC<{
   const start = isQuiz
     ? Math.max(0, delayFrames)
     : Math.min(
-        Math.max(delayFrames, 8),
-        Math.max(8, sceneFrames - 28),
+        Math.max(0, delayFrames),
+        Math.max(0, sceneFrames - 28),
       );
   const opacity = poster
     ? 1
@@ -71,7 +71,7 @@ export const ExampleCardOverlay: React.FC<{
           frame,
           strictlyIncreasing([
             start,
-            start + 6,
+            start + 4,
             Math.max(start + 18, sceneFrames - 8),
             Math.min(sceneFrames, Math.max(start + 24, sceneFrames - 2)),
           ]),
@@ -83,7 +83,7 @@ export const ExampleCardOverlay: React.FC<{
         );
   const rise = poster || isQuiz
     ? 0
-    : interpolate(frame, [start, start + 10], [28, 0], {
+    : interpolate(frame, [start, start + 6], [28, 0], {
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       });

@@ -353,11 +353,16 @@ export const PunchOverlay: React.FC<{
     return null;
   }
 
-  const start = Math.min(Math.max(delayFrames, 6), Math.max(6, sceneFrames - 24));
-  const hold = Math.min(40, Math.max(16, Math.round(sceneFrames * 0.32)));
+  const start = Math.min(
+    Math.max(0, delayFrames),
+    Math.max(0, sceneFrames - 16),
+  );
+  const fadeIn = start + 4;
+  const holdEnd = Math.max(fadeIn + 6, Math.min(start + 32, sceneFrames - 6));
+  const fadeOut = Math.max(holdEnd + 1, sceneFrames);
   const opacity = interpolate(
     frame,
-    [start, start + 5, start + hold, start + hold + 7],
+    [start, fadeIn, holdEnd, fadeOut],
     [0, 1, 1, 0],
     {
       extrapolateLeft: "clamp",
@@ -365,9 +370,9 @@ export const PunchOverlay: React.FC<{
     },
   );
   const slam = vnEnter(frame, start, {
-    duration: 11,
+    duration: 6,
     fromY: placement === "top" ? -80 : -140,
-    fromScale: 1.34,
+    fromScale: 1.22,
   });
   const isPortrait = variant === "portrait";
   const bar = interpolate(frame, [start + 2, start + 10], [0, 1], {

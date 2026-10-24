@@ -40,7 +40,8 @@ import {
   VideoFormat,
   QuizEnding,
 } from "../../types/shorts";
-import { quizRevealSpeech, quizTimeUpSpeech, snippetCodeFromText, snippetFilename } from "../../components/utils";
+import { codeSnippetsFromScenes, quizRevealSpeech, quizTimeUpSpeech } from "../../components/utils";
+import { CodeSnippetPreview } from "../components/CodeSnippetPreview";
 
 interface SceneFormData {
   text: string;
@@ -111,6 +112,7 @@ const VideoCreator: React.FC = () => {
     quizEnding: "reveal",
     showCaptions: false,
     transitionSfx: false,
+    showCodeSnippets: true,
   });
 
   const [loading, setLoading] = useState(false);
@@ -258,6 +260,7 @@ const VideoCreator: React.FC = () => {
           generated.config.quizEnding ?? config.quizEnding ?? "reveal",
         showCaptions: config.showCaptions === true,
         transitionSfx: config.transitionSfx === true,
+        showCodeSnippets: config.showCodeSnippets !== false,
       });
       const revealLetter =
         generated.scenes
@@ -372,42 +375,53 @@ const VideoCreator: React.FC = () => {
     }
   };
 
-  const snippetSource = (): string => {
-    const fromCard = scenes.find((scene) => scene.exampleCardBody.trim())
-      ?.exampleCardBody;
-    return snippetCodeFromText(fromCard || prompt);
+  const listedSnippets = () => codeSnippetsFromScenes(buildApiScenes());
+
+  const saveSnippetPng = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
-  const handleDownloadSnippet = async () => {
+  const handleDownloadSnippet = async (sceneIndex?: number) => {
     if (loading || generating || downloadingImage || downloadingSnippet) {
       return;
     }
-    const code = snippetSource();
-    if (!code) {
-      setError(
-        "Paste a program in the quiz box. Options and answers are left out of the snippet.",
-      );
+    const snippets = listedSnippets().filter((item) =>
+      sceneIndex === undefined ? true : item.sceneIndex === sceneIndex,
+    );
+    if (snippets.length === 0) {
+      setError("Generate scenes first so there is a code snippet to export.");
       return;
     }
     setDownloadingSnippet(true);
     setError(null);
     try {
-      const response = await axios.post(
-        "/api/code-snippet",
-        { code, filename: snippetFilename(code) },
-        { responseType: "blob" },
+      for (const snippet of snippets) {
+        const response = await axios.post(
+          "/api/code-snippet",
+          { code: snippet.code, filename: snippet.filename },
+          { responseType: "blob" },
+        );
+        const blob = new Blob([response.data], { type: "image/png" });
+        if (snippets.length === 1) {
+          replacePoster(blob);
+        }
+        saveSnippetPng(
+          blob,
+          `${snippet.filename.replace(/\.\w+$/, "")}-scene-${snippet.sceneIndex + 1}.png`,
+        );
+      }
+      setSuccess(
+        snippets.length === 1
+          ? "Downloaded VS Code snippet PNG."
+          : `Downloaded ${snippets.length} snippet PNGs.`,
       );
-      const blob = new Blob([response.data], { type: "image/png" });
-      replacePoster(blob);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "vscode-snippet-1080x1920.png";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setSuccess("Downloaded VS Code snippet PNG. No options or answer.");
     } catch (err) {
       setError("Failed to render the snippet image. Try again.");
       console.error(err);
@@ -671,7 +685,7 @@ const VideoCreator: React.FC = () => {
             gap={2}
             flexWrap="wrap"
           >
-          {config.format === "quiz" ? (
+          {listedSnippets().length > 0 ? (
             <Button
               type="button"
               variant="outlined"
@@ -690,7 +704,11 @@ const VideoCreator: React.FC = () => {
               }
               sx={{ minWidth: 200 }}
             >
-              {downloadingSnippet ? "Rendering snippet..." : "Download snippet"}
+              {downloadingSnippet
+                ? "Rendering snippet..."
+                : listedSnippets().length === 1
+                  ? "Download snippet"
+                  : "Download all snippets"}
             </Button>
           ) : null}
           <Button
@@ -727,6 +745,38 @@ const VideoCreator: React.FC = () => {
             )}
           </Button>
           </Box>
+        </Box>
+      ) : null}
+
+      {scriptReady && listedSnippets().length > 0 ? (
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h5" component="h2" gutterBottom>
+            Code snippets
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            These windows are what can appear in the Reel. Turn them off below
+            if you want B-roll only. You can still download the PNGs.
+          </Typography>
+          <Grid container spacing={2}>
+            {listedSnippets().map((snippet) => (
+              <Grid item xs={12} md={6} key={`snippet-${snippet.sceneIndex}`}>
+                <CodeSnippetPreview
+                  title={`Scene ${snippet.sceneIndex + 1} · ${snippet.title}`}
+                  filename={snippet.filename}
+                  code={snippet.code}
+                />
+                <Button
+                  size="small"
+                  sx={{ mt: 1 }}
+                  startIcon={<CodeIcon />}
+                  disabled={downloadingSnippet}
+                  onClick={() => handleDownloadSnippet(snippet.sceneIndex)}
+                >
+                  Download this snippet
+                </Button>
+              </Grid>
+            ))}
+          </Grid>
         </Box>
       ) : null}
 
@@ -971,6 +1021,23 @@ const VideoCreator: React.FC = () => {
               />
               <Typography variant="caption" display="block" color="text.secondary">
                 Off by default. Voiceover is not burned onto the video.
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={config.showCodeSnippets !== false}
+                    onChange={(e) =>
+                      handleConfigChange("showCodeSnippets", e.target.checked)
+                    }
+                  />
+                }
+                label="Code snippets in video"
+              />
+              <Typography variant="caption" display="block" color="text.secondary">
+                Turn off to render B-roll without the VS Code windows.
               </Typography>
             </Grid>
 

@@ -16,6 +16,8 @@ import {
   isQuizAnswerCard,
   isQuizQuestionCard,
   isQuizTimeUpCard,
+  isStoryCodeCard,
+  overlayHitFrame,
   parseQuizSheet,
   quizCountdownTiming,
   quizHoldFreezeFrame,
@@ -50,6 +52,7 @@ export const ShortVideo: React.FC<
   const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
   const captionPosition = config.captionPosition ?? "center";
   const showCaptions = config.showCaptions === true;
+  const showCodeSnippets = config.showCodeSnippets !== false;
   const transitionSfx = config.transitionSfx === true;
   const [baseVolume, musicMuted] = calculateVolume(config.musicVolume);
   const quizMode = usesHardcodedWorksheet(config, scenes);
@@ -128,6 +131,8 @@ export const ShortVideo: React.FC<
               )
             : durationInFrames - audioDelayFrames;
         const hasCard = Boolean(scene.exampleCard?.body?.trim());
+        const hideCodeCard =
+          !showCodeSnippets && isStoryCodeCard(scene.exampleCard);
         const quizQuestion = isQuizQuestionCard(
           scene.exampleCard,
           scene.overlayText,
@@ -149,12 +154,22 @@ export const ShortVideo: React.FC<
           durationInFrames,
           worksheet ? 1 : clips.length,
         );
+        const overlayLead = Math.max(4, Math.round(0.22 * fps));
+        const speechOnsetFrames = overlayHitFrame({
+          captions,
+          fps,
+          audioDelayFrames,
+          leadFrames: overlayLead,
+        });
+        const keywordFrames = overlayHitFrame({
+          captions,
+          needle: scene.overlayText,
+          fps,
+          audioDelayFrames,
+          leadFrames: overlayLead,
+        });
         const delayFrames =
-          quizQuestion || quizAnswer
-            ? 0
-            : i === 0
-              ? hookFrames
-              : Math.max(8, Math.round(spokenFrames * 0.18));
+          quizQuestion || quizAnswer ? 0 : speechOnsetFrames;
         const optionReveal = quizOptionReveal({ fps, delayFrames });
         const quizSheet = scene.exampleCard
           ? parseQuizSheet(scene.exampleCard)
@@ -288,7 +303,7 @@ export const ShortVideo: React.FC<
               play={quizQuestion}
             />
             <QuizAnswerSfx sfx={config.sfx} fps={fps} play={quizAnswer} />
-            {worksheet ? null : hasCard && scene.exampleCard ? (
+            {worksheet || hideCodeCard || !hasCard || !scene.exampleCard ? null : (
               <ExampleCardOverlay
                 card={scene.exampleCard}
                 answerLetter={
@@ -302,14 +317,14 @@ export const ShortVideo: React.FC<
                 optionFrom={optionReveal.from}
                 optionStep={optionReveal.step}
               />
-            ) : null}
+            )}
             {worksheet || !scene.overlayText?.trim() ? null : (
               <PunchOverlay
                 text={scene.overlayText}
                 variant={variant}
-                delayFrames={delayFrames}
+                delayFrames={keywordFrames}
                 sceneFrames={spokenFrames}
-                placement={hasCard ? "top" : "center"}
+                placement={hasCard && !hideCodeCard ? "top" : "center"}
               />
             )}
             {quizQuestion ? (
@@ -356,7 +371,7 @@ export const ShortVideo: React.FC<
                 variant={variant}
                 captionPosition={captionPosition}
                 captionBackgroundColor={captionBackgroundColor}
-                quiet={hasCard}
+                quiet={hasCard && !hideCodeCard}
               />
             ) : null}
           </Sequence>
