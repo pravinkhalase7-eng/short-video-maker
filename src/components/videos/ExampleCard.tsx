@@ -87,12 +87,6 @@ export const ExampleCardOverlay: React.FC<{
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       });
-  const slideX = poster || isQuiz
-    ? 0
-    : interpolate(frame, [start, start + 10], [-110, 0], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      });
   const isPortrait = variant === "portrait";
 
   return (
@@ -138,7 +132,7 @@ export const ExampleCardOverlay: React.FC<{
       )}
       <div
         style={{
-          transform: `translate(${slideX}px, ${rise}px)`,
+          transform: `translateY(${rise}px)`,
           width: "100%",
           display: isQuiz ? "flex" : undefined,
           flexDirection: isQuiz ? "column" : undefined,

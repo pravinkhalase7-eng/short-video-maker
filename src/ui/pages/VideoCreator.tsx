@@ -109,7 +109,7 @@ const VideoCreator: React.FC = () => {
     targetDurationSec: 30,
     format: "story",
     quizEnding: "reveal",
-    showCaptions: true,
+    showCaptions: false,
     transitionSfx: false,
   });
 
@@ -256,7 +256,7 @@ const VideoCreator: React.FC = () => {
         format: generated.config.format ?? config.format ?? "story",
         quizEnding:
           generated.config.quizEnding ?? config.quizEnding ?? "reveal",
-        showCaptions: config.showCaptions !== false,
+        showCaptions: config.showCaptions === true,
         transitionSfx: config.transitionSfx === true,
       });
       const revealLetter =
@@ -961,7 +961,7 @@ const VideoCreator: React.FC = () => {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={config.showCaptions !== false}
+                    checked={config.showCaptions === true}
                     onChange={(e) =>
                       handleConfigChange("showCaptions", e.target.checked)
                     }
@@ -970,7 +970,7 @@ const VideoCreator: React.FC = () => {
                 label="Show captions"
               />
               <Typography variant="caption" display="block" color="text.secondary">
-                Captions slide in with the spoken words. Turn off to skip them.
+                Off by default. Voiceover is not burned onto the video.
               </Typography>
             </Grid>
 

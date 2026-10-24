@@ -187,7 +187,7 @@ export function scriptLimits(options: NormalizedScriptOptions): {
 }
 
 const SYSTEM_PROMPT = `You create short-form video scripts for an automated video maker.
-The tool converts each scene's "text" to English speech, burns captions, searches Pexels for background clips, slowly zooms the clip, ducks music under speech, holds hookText full-screen for 2 seconds with NO voice yet, then starts narration, shows an exampleCard as the hero visual, keeps captions small at the bottom, and shows an end card with endCardText, endCardBeats, and endCardCta after the last line.
+The tool converts each scene's "text" to English speech, does not burn voiceover captions, searches Pexels for background clips, slowly zooms the clip, ducks music under speech, holds hookText full-screen for 2 seconds with NO voice yet, then starts narration, shows an exampleCard as the hero visual, and shows an end card with endCardText, endCardBeats, and endCardCta after the last line.
 
 Return JSON only, matching this shape:
 {

@@ -373,7 +373,7 @@ export class ShortCreator {
           endCardCta: config.endCardCta,
           format: config.format,
           quizEnding: config.quizEnding,
-          showCaptions: config.showCaptions !== false,
+          showCaptions: config.showCaptions === true,
           transitionSfx: config.transitionSfx === true,
           endCardBeats: (() => {
             const beats = (config.endCardBeats || [])

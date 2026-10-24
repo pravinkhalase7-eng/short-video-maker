@@ -49,7 +49,7 @@ export const ShortVideo: React.FC<
   const { fps, durationInFrames: totalFrames } = useVideoConfig();
   const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
   const captionPosition = config.captionPosition ?? "center";
-  const showCaptions = config.showCaptions !== false;
+  const showCaptions = config.showCaptions === true;
   const transitionSfx = config.transitionSfx === true;
   const [baseVolume, musicMuted] = calculateVolume(config.musicVolume);
   const quizMode = usesHardcodedWorksheet(config, scenes);

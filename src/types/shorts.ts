@@ -220,7 +220,9 @@ export const renderConfig = z.object({
   showCaptions: z
     .boolean()
     .optional()
-    .describe("When false, the video is rendered without burned-in captions"),
+    .describe(
+      "When true, burn spoken-word captions onto the video. Off by default.",
+    ),
   transitionSfx: z
     .boolean()
     .optional()

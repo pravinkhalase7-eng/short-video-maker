@@ -31,10 +31,23 @@ export const KenBurnsClip: React.FC<{
       extrapolateRight: "clamp",
     },
   );
-  const pan = interpolate(
+  const panX = interpolate(
     frame,
     [0, Math.max(1, durationInFrames)],
-    zoomIn ? [-22, 22] : [22, -22],
+    index % 4 < 2 ? (zoomIn ? [-18, 18] : [18, -18]) : [0, 0],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    },
+  );
+  const panY = interpolate(
+    frame,
+    [0, Math.max(1, durationInFrames)],
+    index % 4 >= 2 || index % 4 === 1
+      ? zoomIn
+        ? [-24, 16]
+        : [16, -24]
+      : [0, 0],
     {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
@@ -62,7 +75,11 @@ export const KenBurnsClip: React.FC<{
 
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
-      <AbsoluteFill style={{ transform: `scale(${scale}) translateX(${pan}px)` }}>
+      <AbsoluteFill
+        style={{
+          transform: `scale(${scale}) translate(${panX}px, ${panY}px)`,
+        }}
+      >
         {freeze || !isImage ? <Freeze frame={4}>{media}</Freeze> : media}
       </AbsoluteFill>
     </AbsoluteFill>
@@ -347,11 +364,9 @@ export const PunchOverlay: React.FC<{
       extrapolateRight: "clamp",
     },
   );
-  const fromLeft = placement === "top";
   const slam = vnEnter(frame, start, {
     duration: 11,
-    fromX: fromLeft ? -240 : 0,
-    fromY: fromLeft ? 0 : -140,
+    fromY: placement === "top" ? -80 : -140,
     fromScale: 1.34,
   });
   const isPortrait = variant === "portrait";
@@ -406,7 +421,7 @@ export const PunchOverlay: React.FC<{
             borderRadius: 999,
             backgroundColor: "#E53935",
             transform: `scaleX(${bar})`,
-            transformOrigin: fromLeft ? "left center" : "center",
+            transformOrigin: "center",
           }}
         />
       </div>

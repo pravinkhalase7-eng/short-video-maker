@@ -130,19 +130,12 @@ const KineticCaptionLine: React.FC<{
   isPortrait,
 }) => {
   const frame = useCurrentFrame();
-  const dir = (sceneIndex + pageIndex) % 2 === 0 ? 1 : -1;
   const enter = vnEnter(frame, 0, {
-    duration: 11,
-    fromX: dir * (quiet ? 120 : 220),
-    fromY: quiet ? 18 : 8,
-    fromScale: 0.88,
+    duration: 9,
+    fromY: 28,
+    fromScale: 0.92,
   });
-  const exit = vnExit(frame, durationInFrames, 7);
-  const barGrow = interpolate(frame, [0, 9], [0.08, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: VN_EASE,
-  });
+  const exit = vnExit(frame, durationInFrames, 6);
 
   return (
     <div
@@ -160,23 +153,9 @@ const KineticCaptionLine: React.FC<{
           position: "relative",
           width: "100%",
           opacity: enter.opacity * (1 - exit),
-          transform: vnTransform(enter, dir * -160 * exit),
+          transform: vnTransform(enter),
         }}
       >
-        <div
-          style={{
-            position: "absolute",
-            left: "4%",
-            right: "4%",
-            top: quiet ? "18%" : "12%",
-            bottom: quiet ? "10%" : "6%",
-            borderRadius: quiet ? 14 : 18,
-            backgroundColor: "rgba(8, 10, 24, 0.72)",
-            transform: `scaleX(${barGrow})`,
-            transformOrigin: dir > 0 ? "left center" : "right center",
-            boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
-          }}
-        />
         <p
           style={{
             position: "relative",
@@ -214,16 +193,6 @@ const KineticCaptionLine: React.FC<{
                   },
                 )
               : 1;
-            const wordX = interpolate(
-              local,
-              [0, 6],
-              [spoken ? dir * (punch ? -56 : 36) : dir * 28, 0],
-              {
-                extrapolateLeft: "clamp",
-                extrapolateRight: "clamp",
-                easing: VN_EASE,
-              },
-            );
             return (
               <span key={`scene-${sceneIndex}-page-${pageIndex}-text-${l}`}>
                 <span
@@ -231,7 +200,7 @@ const KineticCaptionLine: React.FC<{
                     display: "inline-block",
                     fontWeight: 800,
                     opacity: spoken ? 1 : 0.32,
-                    transform: `translateX(${wordX}px) scale(${wordScale})`,
+                    transform: `scale(${wordScale})`,
                     ...(active
                       ? {
                           backgroundColor: punch

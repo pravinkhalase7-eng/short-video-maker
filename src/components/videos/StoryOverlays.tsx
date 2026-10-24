@@ -105,8 +105,7 @@ const HookOverlay: React.FC<{
           const isLast = index === words.length - 1 && words.length > 1;
           const enter = vnEnter(frame, 1 + index * 3, {
             duration: 10,
-            fromX: index % 2 === 0 ? -180 : 180,
-            fromY: 36,
+            fromY: index % 2 === 0 ? -120 : 80,
             fromScale: 1.22,
           });
           return (
@@ -156,8 +155,7 @@ const EndCardOverlay: React.FC<{
   });
   const slam = vnEnter(frame, 0, {
     duration: 12,
-    fromX: -140,
-    fromY: -40,
+    fromY: -80,
     fromScale: 1.12,
   });
   const isPortrait = variant === "portrait";
@@ -207,7 +205,7 @@ const EndCardOverlay: React.FC<{
           {beats.map((beat, index) => {
             const enter = vnEnter(frame, 8 + index * 6, {
               duration: 10,
-              fromX: index % 2 === 0 ? -160 : 160,
+              fromY: 70,
               fromScale: 0.82,
             });
             return (
