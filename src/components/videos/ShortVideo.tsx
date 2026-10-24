@@ -302,14 +302,16 @@ export const ShortVideo: React.FC<
                 optionFrom={optionReveal.from}
                 optionStep={optionReveal.step}
               />
-            ) : scene.overlayText?.trim() ? (
+            ) : null}
+            {worksheet || !scene.overlayText?.trim() ? null : (
               <PunchOverlay
                 text={scene.overlayText}
                 variant={variant}
                 delayFrames={delayFrames}
                 sceneFrames={spokenFrames}
+                placement={hasCard ? "top" : "center"}
               />
-            ) : null}
+            )}
             {quizQuestion ? (
               <>
                 <QuizCommentCta
@@ -354,7 +356,7 @@ export const ShortVideo: React.FC<
                 variant={variant}
                 captionPosition={captionPosition}
                 captionBackgroundColor={captionBackgroundColor}
-                quiet={hasCard || i === 0}
+                quiet={hasCard}
               />
             ) : null}
           </Sequence>

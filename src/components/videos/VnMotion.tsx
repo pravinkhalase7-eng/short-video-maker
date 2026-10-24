@@ -63,8 +63,23 @@ export function vnEnter(
   };
 }
 
-export function vnTransform(enter: VnEnter): string {
-  return `translate(${enter.x}px, ${enter.y}px) scale(${enter.scale})`;
+export function vnTransform(enter: VnEnter, extraX = 0, extraY = 0): string {
+  return `translate(${enter.x + extraX}px, ${enter.y + extraY}px) scale(${enter.scale})`;
+}
+
+export function vnExit(
+  frame: number,
+  durationInFrames: number,
+  hold = 6,
+): number {
+  if (durationInFrames <= hold + 2) {
+    return 0;
+  }
+  const start = durationInFrames - hold;
+  return interpolate(frame, [start, durationInFrames], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 }
 
 export const VnFlashWipe: React.FC<{ play?: boolean }> = ({ play = true }) => {

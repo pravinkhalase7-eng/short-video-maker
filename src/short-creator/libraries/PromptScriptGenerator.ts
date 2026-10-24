@@ -266,6 +266,7 @@ function buildSystemPrompt(options: NormalizedScriptOptions): string {
 - Write ${limits.minScenes} to ${limits.maxScenes} scenes.
 - About ${limits.wordTarget} spoken words total. This is not three tiny sentences.
 - Each scene: 1-3 spoken sentences, still easy to say, naming the subject.
+- Talk to the viewer as "you". Open on a moment they have felt, not a lecture ("you asked ChatGPT and it sounded sure" not "AI hallucination is defined as").
 - Last scene is the takeaway.`;
 
   return `${durationRules}\n\n${SYSTEM_PROMPT}`;

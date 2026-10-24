@@ -31,6 +31,15 @@ export const KenBurnsClip: React.FC<{
       extrapolateRight: "clamp",
     },
   );
+  const pan = interpolate(
+    frame,
+    [0, Math.max(1, durationInFrames)],
+    zoomIn ? [-22, 22] : [22, -22],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    },
+  );
   const isImage =
     kind === "image" || /\.(jpe?g|png|webp|gif)(\?|$)/i.test(src);
   const mediaStyle = {
@@ -53,7 +62,7 @@ export const KenBurnsClip: React.FC<{
 
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
-      <AbsoluteFill style={{ transform: `scale(${scale})` }}>
+      <AbsoluteFill style={{ transform: `scale(${scale}) translateX(${pan}px)` }}>
         {freeze || !isImage ? <Freeze frame={4}>{media}</Freeze> : media}
       </AbsoluteFill>
     </AbsoluteFill>
@@ -319,7 +328,8 @@ export const PunchOverlay: React.FC<{
   variant: "portrait" | "landscape";
   delayFrames: number;
   sceneFrames: number;
-}> = ({ text, variant, delayFrames, sceneFrames }) => {
+  placement?: "center" | "top";
+}> = ({ text, variant, delayFrames, sceneFrames, placement = "center" }) => {
   const frame = useCurrentFrame();
   const punch = text.trim();
   if (!punch || sceneFrames < 12) {
@@ -337,47 +347,69 @@ export const PunchOverlay: React.FC<{
       extrapolateRight: "clamp",
     },
   );
+  const fromLeft = placement === "top";
   const slam = vnEnter(frame, start, {
     duration: 11,
-    fromY: -140,
+    fromX: fromLeft ? -240 : 0,
+    fromY: fromLeft ? 0 : -140,
     fromScale: 1.34,
   });
   const isPortrait = variant === "portrait";
+  const bar = interpolate(frame, [start + 2, start + 10], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: VN_EASE,
+  });
 
   return (
     <AbsoluteFill
       style={{
-        justifyContent: "center",
+        justifyContent: placement === "top" ? "flex-start" : "center",
         alignItems: "center",
+        paddingTop: placement === "top" ? (isPortrait ? 188 : 72) : 0,
         pointerEvents: "none",
         opacity,
       }}
     >
-      <p
-        style={{
-          margin: 0,
-          transform: vnTransform(slam),
-          fontFamily,
-          fontWeight: 900,
-          fontSize:
-            punch.length <= 3
-              ? isPortrait
-                ? "9em"
-                : "7em"
-              : isPortrait
-                ? "5.4em"
-                : "4.4em",
-          lineHeight: 1,
-          color: "white",
-          textAlign: "center",
-          textTransform: "uppercase",
-          WebkitTextStroke: "3px black",
-          textShadow: "0 10px 28px rgba(0,0,0,0.75)",
-          padding: "0 40px",
-        }}
-      >
-        {punch}
-      </p>
+      <div style={{ transform: vnTransform(slam), textAlign: "center" }}>
+        <p
+          style={{
+            margin: 0,
+            fontFamily,
+            fontWeight: 900,
+            fontSize:
+              punch.length <= 3
+                ? isPortrait
+                  ? "9em"
+                  : "7em"
+                : isPortrait
+                  ? placement === "top"
+                    ? "3.6em"
+                    : "5.4em"
+                  : "4.4em",
+            lineHeight: 1,
+            color: "white",
+            textAlign: "center",
+            textTransform: "uppercase",
+            WebkitTextStroke: "3px black",
+            textShadow: "0 10px 28px rgba(0,0,0,0.75)",
+            padding: "0 40px",
+          }}
+        >
+          {punch}
+        </p>
+        <div
+          style={{
+            margin: isPortrait ? "12px auto 0" : "8px auto 0",
+            width: isPortrait ? 280 : 220,
+            height: 8,
+            borderRadius: 999,
+            backgroundColor: "#E53935",
+            transform: `scaleX(${bar})`,
+            transformOrigin: fromLeft ? "left center" : "center",
+          }}
+        />
+      </div>
     </AbsoluteFill>
   );
 };

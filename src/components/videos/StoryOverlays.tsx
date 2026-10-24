@@ -77,14 +77,7 @@ const HookOverlay: React.FC<{
       extrapolateRight: "clamp",
     },
   );
-  const slam = vnEnter(frame, 0, {
-    duration: 12,
-    fromY: -220,
-    fromScale: 1.38,
-  });
   const words = text.trim().split(/\s+/).filter(Boolean);
-  const last = words.length > 1 ? words[words.length - 1] : "";
-  const lead = words.length > 1 ? words.slice(0, -1).join(" ") : text;
   const isPortrait = variant === "portrait";
 
   return (
@@ -98,39 +91,55 @@ const HookOverlay: React.FC<{
         pointerEvents: "none",
       }}
     >
-      <p
+      <div
         style={{
-          margin: 0,
-          transform: vnTransform(slam),
-          fontFamily,
-          fontWeight: 900,
-          fontSize: isPortrait ? "6.2em" : "4.8em",
-          lineHeight: 0.98,
-          color: "white",
-          textAlign: "center",
-          textTransform: "uppercase",
-          WebkitTextStroke: "2px black",
-          textShadow: "0 10px 32px rgba(0,0,0,0.8)",
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          columnGap: isPortrait ? 22 : 18,
+          rowGap: isPortrait ? 12 : 10,
+          maxWidth: isPortrait ? 920 : 1400,
         }}
       >
-        {lead}
-        {last ? (
-          <>
-            {" "}
+        {words.map((word, index) => {
+          const isLast = index === words.length - 1 && words.length > 1;
+          const enter = vnEnter(frame, 1 + index * 3, {
+            duration: 10,
+            fromX: index % 2 === 0 ? -180 : 180,
+            fromY: 36,
+            fromScale: 1.22,
+          });
+          return (
             <span
+              key={`hook-${index}-${word}`}
               style={{
                 display: "inline-block",
-                backgroundColor: "#E53935",
-                padding: isPortrait ? "4px 18px 10px" : "2px 14px 8px",
-                borderRadius: 8,
-                boxShadow: "0 8px 0 #8e1c1c",
+                transform: vnTransform(enter),
+                opacity: enter.opacity,
+                fontFamily,
+                fontWeight: 900,
+                fontSize: isPortrait ? "6.2em" : "4.8em",
+                lineHeight: 0.98,
+                color: "white",
+                textAlign: "center",
+                textTransform: "uppercase",
+                WebkitTextStroke: "2px black",
+                textShadow: "0 10px 32px rgba(0,0,0,0.8)",
+                ...(isLast
+                  ? {
+                      backgroundColor: "#E53935",
+                      padding: isPortrait ? "4px 18px 10px" : "2px 14px 8px",
+                      borderRadius: 8,
+                      boxShadow: "0 8px 0 #8e1c1c",
+                    }
+                  : {}),
               }}
             >
-              {last}
+              {word}
             </span>
-          </>
-        ) : null}
-      </p>
+          );
+        })}
+      </div>
     </AbsoluteFill>
   );
 };
@@ -147,10 +156,16 @@ const EndCardOverlay: React.FC<{
   });
   const slam = vnEnter(frame, 0, {
     duration: 12,
-    fromY: -80,
-    fromScale: 1.18,
+    fromX: -140,
+    fromY: -40,
+    fromScale: 1.12,
   });
   const isPortrait = variant === "portrait";
+  const ctaEnter = vnEnter(frame, 12 + beats.length * 6, {
+    duration: 10,
+    fromY: 90,
+    fromScale: 0.86,
+  });
 
   return (
     <AbsoluteFill
@@ -189,31 +204,40 @@ const EndCardOverlay: React.FC<{
             marginTop: 36,
           }}
         >
-          {beats.map((beat) => (
-            <div
-              key={beat}
-              style={{
-                padding: "12px 22px",
-                borderRadius: 999,
-                border: "2px solid white",
-                backgroundColor: "rgba(255,255,255,0.12)",
-              }}
-            >
-              <p
+          {beats.map((beat, index) => {
+            const enter = vnEnter(frame, 8 + index * 6, {
+              duration: 10,
+              fromX: index % 2 === 0 ? -160 : 160,
+              fromScale: 0.82,
+            });
+            return (
+              <div
+                key={beat}
                 style={{
-                  margin: 0,
-                  fontFamily,
-                  fontWeight: 800,
-                  fontSize: isPortrait ? "1.8em" : "1.5em",
-                  color: "white",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.6,
+                  padding: "12px 22px",
+                  borderRadius: 999,
+                  border: "2px solid white",
+                  backgroundColor: "rgba(255,255,255,0.12)",
+                  transform: vnTransform(enter),
+                  opacity: enter.opacity,
                 }}
               >
-                {beat}
-              </p>
-            </div>
-          ))}
+                <p
+                  style={{
+                    margin: 0,
+                    fontFamily,
+                    fontWeight: 800,
+                    fontSize: isPortrait ? "1.8em" : "1.5em",
+                    color: "white",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.6,
+                  }}
+                >
+                  {beat}
+                </p>
+              </div>
+            );
+          })}
         </div>
       ) : null}
       {cta ? (
@@ -223,6 +247,8 @@ const EndCardOverlay: React.FC<{
             padding: "18px 42px",
             borderRadius: 999,
             backgroundColor: "white",
+            transform: vnTransform(ctaEnter),
+            opacity: ctaEnter.opacity,
           }}
         >
           <p

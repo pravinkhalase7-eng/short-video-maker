@@ -7,7 +7,7 @@ import {
   createCaptionPages,
   isPunchCaptionWord,
 } from "../utils";
-import { VN_EASE, vnEnter, vnTransform } from "./VnMotion";
+import { VN_EASE, vnEnter, vnExit, vnTransform } from "./VnMotion";
 
 const { fontFamily } = loadFont();
 
@@ -85,6 +85,7 @@ export const SceneCaptions: React.FC<{
               texts={page.lines[0]?.texts || []}
               sceneIndex={sceneIndex}
               pageIndex={j}
+              durationInFrames={windowed.durationInFrames}
               sceneStartFrame={sceneStartFrame}
               compositionFrame={compositionFrame}
               fps={fps}
@@ -105,6 +106,7 @@ const KineticCaptionLine: React.FC<{
   texts: Caption[];
   sceneIndex: number;
   pageIndex: number;
+  durationInFrames: number;
   sceneStartFrame: number;
   compositionFrame: number;
   fps: number;
@@ -117,6 +119,7 @@ const KineticCaptionLine: React.FC<{
   texts,
   sceneIndex,
   pageIndex,
+  durationInFrames,
   sceneStartFrame,
   compositionFrame,
   fps,
@@ -127,10 +130,18 @@ const KineticCaptionLine: React.FC<{
   isPortrait,
 }) => {
   const frame = useCurrentFrame();
+  const dir = (sceneIndex + pageIndex) % 2 === 0 ? 1 : -1;
   const enter = vnEnter(frame, 0, {
-    duration: 8,
-    fromY: 36,
-    fromScale: 0.86,
+    duration: 11,
+    fromX: dir * (quiet ? 120 : 220),
+    fromY: quiet ? 18 : 8,
+    fromScale: 0.88,
+  });
+  const exit = vnExit(frame, durationInFrames, 7);
+  const barGrow = interpolate(frame, [0, 9], [0.08, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: VN_EASE,
   });
 
   return (
@@ -144,68 +155,105 @@ const KineticCaptionLine: React.FC<{
         ...captionStyle,
       }}
     >
-      <p
+      <div
         style={{
-          fontSize,
-          fontFamily,
-          fontWeight: 800,
-          color: "white",
-          WebkitTextStroke: "2px black",
-          WebkitTextFillColor: "white",
-          textShadow: "0px 0px 10px black",
-          textAlign: "center",
+          position: "relative",
           width: "100%",
-          textTransform: "uppercase",
-          margin: 0,
-          transform: vnTransform(enter),
+          opacity: enter.opacity * (1 - exit),
+          transform: vnTransform(enter, dir * -160 * exit),
         }}
       >
-        {texts.map((text, l) => {
-          const wordStart = sceneStartFrame + (text.startMs / 1000) * fps;
-          const wordEnd = sceneStartFrame + (text.endMs / 1000) * fps;
-          const active =
-            compositionFrame >= wordStart && compositionFrame <= wordEnd;
-          const punch = isPunchCaptionWord(text.text);
-          const local = compositionFrame - wordStart;
-          const wordScale = active
-            ? interpolate(
-                local,
-                [0, 4, 9],
-                punch ? [0.7, 1.32, 1.08] : [0.88, 1.14, 1],
-                {
-                  extrapolateLeft: "clamp",
-                  extrapolateRight: "clamp",
-                  easing: VN_EASE,
-                },
-              )
-            : 1;
-          return (
-            <span key={`scene-${sceneIndex}-page-${pageIndex}-text-${l}`}>
-              <span
-                style={{
-                  display: "inline-block",
-                  fontWeight: 800,
-                  transform: `scale(${wordScale})`,
-                  ...(active
-                    ? {
-                        backgroundColor: punch
-                          ? "#E53935"
-                          : captionBackgroundColor,
-                        padding: quiet ? "4px 8px" : "8px 10px",
-                        marginLeft: quiet ? "-8px" : "-10px",
-                        marginRight: quiet ? "-8px" : "-10px",
-                        borderRadius: quiet ? 8 : 10,
-                      }
-                    : {}),
-                }}
-              >
-                {text.text}
+        <div
+          style={{
+            position: "absolute",
+            left: "4%",
+            right: "4%",
+            top: quiet ? "18%" : "12%",
+            bottom: quiet ? "10%" : "6%",
+            borderRadius: quiet ? 14 : 18,
+            backgroundColor: "rgba(8, 10, 24, 0.72)",
+            transform: `scaleX(${barGrow})`,
+            transformOrigin: dir > 0 ? "left center" : "right center",
+            boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
+          }}
+        />
+        <p
+          style={{
+            position: "relative",
+            fontSize,
+            fontFamily,
+            fontWeight: 800,
+            color: "white",
+            WebkitTextStroke: "2px black",
+            WebkitTextFillColor: "white",
+            textShadow: "0px 0px 10px black",
+            textAlign: "center",
+            width: "100%",
+            textTransform: "uppercase",
+            margin: 0,
+            padding: quiet ? "10px 16px" : "14px 18px",
+          }}
+        >
+          {texts.map((text, l) => {
+            const wordStart = sceneStartFrame + (text.startMs / 1000) * fps;
+            const wordEnd = sceneStartFrame + (text.endMs / 1000) * fps;
+            const spoken = compositionFrame >= wordStart;
+            const active =
+              spoken && compositionFrame <= wordEnd;
+            const punch = isPunchCaptionWord(text.text);
+            const local = compositionFrame - wordStart;
+            const wordScale = active
+              ? interpolate(
+                  local,
+                  [0, 4, 9],
+                  punch ? [0.7, 1.32, 1.08] : [0.88, 1.14, 1],
+                  {
+                    extrapolateLeft: "clamp",
+                    extrapolateRight: "clamp",
+                    easing: VN_EASE,
+                  },
+                )
+              : 1;
+            const wordX = interpolate(
+              local,
+              [0, 6],
+              spoken ? dir * (punch ? -56 : 36) : dir * 28,
+              0,
+              {
+                extrapolateLeft: "clamp",
+                extrapolateRight: "clamp",
+                easing: VN_EASE,
+              },
+            );
+            return (
+              <span key={`scene-${sceneIndex}-page-${pageIndex}-text-${l}`}>
+                <span
+                  style={{
+                    display: "inline-block",
+                    fontWeight: 800,
+                    opacity: spoken ? 1 : 0.32,
+                    transform: `translateX(${wordX}px) scale(${wordScale})`,
+                    ...(active
+                      ? {
+                          backgroundColor: punch
+                            ? "#E53935"
+                            : captionBackgroundColor,
+                          padding: quiet ? "4px 8px" : "8px 10px",
+                          marginLeft: quiet ? "-8px" : "-10px",
+                          marginRight: quiet ? "-8px" : "-10px",
+                          borderRadius: quiet ? 8 : 10,
+                        }
+                      : {}),
+                  }}
+                >
+                  {text.text}
+                </span>
+                {l < texts.length - 1 ? " " : ""}
               </span>
-              {l < texts.length - 1 ? " " : ""}
-            </span>
-          );
-        })}
-      </p>
+            );
+          })}
+        </p>
+      </div>
     </div>
   );
 };

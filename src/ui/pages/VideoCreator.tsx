@@ -970,7 +970,7 @@ const VideoCreator: React.FC = () => {
                 label="Show captions"
               />
               <Typography variant="caption" display="block" color="text.secondary">
-                Turn off to render without burned-in captions.
+                Captions slide in with the spoken words. Turn off to skip them.
               </Typography>
             </Grid>
 
