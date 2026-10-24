@@ -49,6 +49,8 @@ export const ShortVideo: React.FC<
   const { fps, durationInFrames: totalFrames } = useVideoConfig();
   const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
   const captionPosition = config.captionPosition ?? "center";
+  const showCaptions = config.showCaptions !== false;
+  const transitionSfx = config.transitionSfx === true;
   const [baseVolume, musicMuted] = calculateVolume(config.musicVolume);
   const quizMode = usesHardcodedWorksheet(config, scenes);
   const useHook = !quizMode && Boolean(config.hookText?.trim());
@@ -219,19 +221,39 @@ export const ShortVideo: React.FC<
               />
             )}
             {quizQuestion ? (
-              <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.42} />
+              <CutWhoosh
+                sfx={config.sfx}
+                fps={fps}
+                play={transitionSfx}
+                volume={0.42}
+              />
             ) : null}
             {quizAnswer ? (
               <>
                 <VnFlashWipe play />
-                <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.38} />
+                <CutWhoosh
+                  sfx={config.sfx}
+                  fps={fps}
+                  play={transitionSfx}
+                  volume={0.38}
+                />
               </>
             ) : null}
             {quizTimeUp ? (
-              <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.4} />
+              <CutWhoosh
+                sfx={config.sfx}
+                fps={fps}
+                play={transitionSfx}
+                volume={0.4}
+              />
             ) : null}
             {useHook && i === 0 ? (
-              <CutWhoosh sfx={config.sfx} fps={fps} play volume={0.36} />
+              <CutWhoosh
+                sfx={config.sfx}
+                fps={fps}
+                play={transitionSfx}
+                volume={0.36}
+              />
             ) : null}
             {audioDelayFrames > 0 ? (
               <Sequence from={audioDelayFrames}>
@@ -244,7 +266,7 @@ export const ShortVideo: React.FC<
               sfx={config.sfx}
               sceneIndex={i}
               fps={fps}
-              play={!worksheet}
+              play={!worksheet && transitionSfx}
             />
             {worksheet
               ? null
@@ -254,7 +276,7 @@ export const ShortVideo: React.FC<
                     sfx={config.sfx}
                     from={window.from}
                     fps={fps}
-                    play={window.from > 0}
+                    play={transitionSfx && window.from > 0}
                   />
                 ))}
             <QuizOptionTicks
@@ -320,24 +342,28 @@ export const ShortVideo: React.FC<
               />
             ) : null}
             {quizTimeUp ? <QuizTimeUpScreen variant={variant} play /> : null}
-            <SceneCaptions
-              captions={captions}
-              sceneIndex={i}
-              sceneStartFrame={startFrame + audioDelayFrames}
-              compositionFrame={frame}
-              fps={fps}
-              hookFrames={0}
-              endCardFrom={endCardFrom}
-              variant={variant}
-              captionPosition={captionPosition}
-              captionBackgroundColor={captionBackgroundColor}
-              quiet={hasCard || i === 0}
-            />
+            {showCaptions ? (
+              <SceneCaptions
+                captions={captions}
+                sceneIndex={i}
+                sceneStartFrame={startFrame + audioDelayFrames}
+                compositionFrame={frame}
+                fps={fps}
+                hookFrames={0}
+                endCardFrom={endCardFrom}
+                variant={variant}
+                captionPosition={captionPosition}
+                captionBackgroundColor={captionBackgroundColor}
+                quiet={hasCard || i === 0}
+              />
+            ) : null}
           </Sequence>
         );
       })}
       <StoryOverlaySequences config={config} variant={variant} />
-      <EndCardSfx sfx={config.sfx} from={endCardFrom} fps={fps} />
+      {transitionSfx ? (
+        <EndCardSfx sfx={config.sfx} from={endCardFrom} fps={fps} />
+      ) : null}
     </AbsoluteFill>
   );
 };

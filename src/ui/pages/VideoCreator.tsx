@@ -19,6 +19,8 @@ import {
   InputAdornment,
   ToggleButton,
   ToggleButtonGroup,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -107,6 +109,8 @@ const VideoCreator: React.FC = () => {
     targetDurationSec: 30,
     format: "story",
     quizEnding: "reveal",
+    showCaptions: true,
+    transitionSfx: false,
   });
 
   const [loading, setLoading] = useState(false);
@@ -252,6 +256,8 @@ const VideoCreator: React.FC = () => {
         format: generated.config.format ?? config.format ?? "story",
         quizEnding:
           generated.config.quizEnding ?? config.quizEnding ?? "reveal",
+        showCaptions: config.showCaptions !== false,
+        transitionSfx: config.transitionSfx === true,
       });
       const revealLetter =
         generated.scenes
@@ -952,7 +958,41 @@ const VideoCreator: React.FC = () => {
             </Grid>
 
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={config.showCaptions !== false}
+                    onChange={(e) =>
+                      handleConfigChange("showCaptions", e.target.checked)
+                    }
+                  />
+                }
+                label="Show captions"
+              />
+              <Typography variant="caption" display="block" color="text.secondary">
+                Turn off to render without burned-in captions.
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={config.transitionSfx === true}
+                    onChange={(e) =>
+                      handleConfigChange("transitionSfx", e.target.checked)
+                    }
+                  />
+                }
+                label="Transition sounds"
+              />
+              <Typography variant="caption" display="block" color="text.secondary">
+                Whoosh and sting hits on cuts. Off by default.
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth disabled={config.showCaptions === false}>
                 <InputLabel>Caption Position</InputLabel>
                 <Select
                   value={config.captionPosition}
@@ -980,6 +1020,7 @@ const VideoCreator: React.FC = () => {
                   handleConfigChange("captionBackgroundColor", e.target.value)
                 }
                 helperText="Any valid CSS color (name, hex, rgba)"
+                disabled={config.showCaptions === false}
                 required
               />
             </Grid>

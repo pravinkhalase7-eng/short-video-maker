@@ -254,6 +254,10 @@ function fiveHashtags(prompt: string, code: string, isQuiz: boolean): string[] {
     add("#sql");
     add("#data");
   }
+  if (/\b(ai|artificial intelligence|llm|chatgpt|hallucin)/i.test(blob)) {
+    add("#ai");
+    add("#machinelearning");
+  }
   if (isQuiz) {
     add("#codingquiz");
     add("#programming");
@@ -263,8 +267,13 @@ function fiveHashtags(prompt: string, code: string, isQuiz: boolean): string[] {
     add("#reels");
     add("#learnontiktok");
   }
-  add("#100daysofcode");
-  add("#coding");
-  add("#developer");
+  if (
+    isQuiz ||
+    /\b(python|java|javascript|sql|coding|developer|100days?ofcode)\b/.test(blob)
+  ) {
+    add("#100daysofcode");
+    add("#coding");
+    add("#developer");
+  }
   return picked.slice(0, 5);
 }

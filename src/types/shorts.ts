@@ -217,6 +217,16 @@ export const renderConfig = z.object({
     .describe(
       "reveal shows the winning letter after the timer; timeup shows TIME'S UP and asks for a comment instead",
     ),
+  showCaptions: z
+    .boolean()
+    .optional()
+    .describe("When false, the video is rendered without burned-in captions"),
+  transitionSfx: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true, play whoosh/sting hits on scene cuts and the end card. Off by default.",
+    ),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 

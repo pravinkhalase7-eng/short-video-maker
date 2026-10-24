@@ -277,3 +277,22 @@ Answer: C) [1, 2, 3, 4]`;
   expect(hydrated.explanation).not.toMatch(/outputs \[4\]/);
   expect(hydrated.instagramText).toMatch(/answer is C/i);
 });
+
+test("story posts about AI do not get coding hashtags", () => {
+  const post = buildInstagramPost({
+    id: "ai-hallucination",
+    prompt: "what is AI hallucination",
+    scenes: [
+      {
+        text: "An AI hallucination happens when a model states something false with confidence.",
+        searchTerms: ["ai", "brain"],
+      },
+    ],
+    config: { format: "story" },
+  });
+
+  expect(post.hashtags).toContain("#ai");
+  expect(post.hashtags).not.toContain("#coding");
+  expect(post.hashtags).not.toContain("#100daysofcode");
+  expect(post.hashtags).toContain("#shorts");
+});

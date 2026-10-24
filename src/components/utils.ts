@@ -52,6 +52,8 @@ export const shortVideoSchema = z.object({
     quizEnding: z.enum(["reveal", "timeup"]).optional(),
     quizHoldPoster: z.string().optional(),
     quizAnswerPoster: z.string().optional(),
+    showCaptions: z.boolean().optional(),
+    transitionSfx: z.boolean().optional(),
     sfx: z
       .object({
         whoosh: z.string(),
