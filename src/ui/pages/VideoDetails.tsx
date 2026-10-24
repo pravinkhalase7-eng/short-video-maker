@@ -20,6 +20,7 @@ import { VideoStatus } from "../../types/shorts";
 type VideoDetailsData = {
   status: VideoStatus;
   progress?: number;
+  format?: string;
   prompt?: string;
   title?: string;
   caption?: string;
@@ -29,6 +30,19 @@ type VideoDetailsData = {
   youtubeTitle?: string;
   youtubeDescription?: string;
 };
+
+function processingMessage(progress?: number, format?: string): string {
+  if (!progress || progress < 5) {
+    return "Writing voiceover, then fetching clips for the 1080×1920 Reel.";
+  }
+  if (format !== "quiz" && progress < 15) {
+    return `Fetching B-roll ${progress}% — story videos download Pexels clips before render starts.`;
+  }
+  if (format === "quiz") {
+    return `Rendering ${progress}% — think-time frames are a still now, so this should finish faster.`;
+  }
+  return `Rendering ${progress}%.`;
+}
 
 const VideoDetails: React.FC = () => {
   const { videoId } = useParams<{ videoId: string }>();
@@ -298,9 +312,7 @@ const VideoDetails: React.FC = () => {
           <CircularProgress size={60} sx={{ mb: 2 }} />
           <Typography variant="h6">Your video is being created...</Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-            {progress && progress >= 5
-              ? `Rendering ${progress}% — think-time frames are a still now, so this should finish faster.`
-              : "Writing voiceover, then rendering the 1080×1920 Reel."}
+            {processingMessage(progress, details?.format)}
           </Typography>
           {renderPostPack()}
         </Box>

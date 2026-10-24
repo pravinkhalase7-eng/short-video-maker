@@ -18,10 +18,10 @@ export class StockMedia {
     options: { quick?: boolean } = {},
   ): Promise<Video> {
     const queries = searchQueriesFor(searchTerms);
-    const terms = options.quick ? queries.slice(0, 2) : queries;
+    const terms = options.quick ? queries.slice(0, 2) : queries.slice(0, 3);
     const attempts: Array<() => Promise<Video>> = [];
 
-    for (const term of terms) {
+    for (const term of terms.slice(0, options.quick ? 1 : 2)) {
       attempts.push(() =>
         this.pexels.findVideo(
           [term],
@@ -34,6 +34,17 @@ export class StockMedia {
         ),
       );
     }
+    attempts.push(() =>
+      this.pexels.findVideo(
+        queries,
+        minDurationSeconds,
+        excludeIds,
+        orientation,
+        4000,
+        0,
+        true,
+      ),
+    );
     if (!options.quick && this.pixabay?.enabled) {
       for (const term of terms) {
         attempts.push(() =>
@@ -54,17 +65,6 @@ export class StockMedia {
           );
         }
       }
-      attempts.push(() =>
-        this.pexels.findVideo(
-          queries,
-          minDurationSeconds,
-          excludeIds,
-          orientation,
-          4000,
-          0,
-          true,
-        ),
-      );
     } else if (terms[0]) {
       attempts.push(() =>
         this.pexels.findPhoto(terms[0], excludeIds, orientation),
@@ -82,6 +82,12 @@ export class StockMedia {
         return clip;
       } catch (error: unknown) {
         lastError = error;
+        if (
+          error instanceof Error &&
+          /Invalid Pexels API key/i.test(error.message)
+        ) {
+          throw error;
+        }
       }
     }
 

@@ -246,6 +246,8 @@ export class ShortCreator {
       });
     }
 
+    const sceneCount = prepared.length;
+    let sceneIndex = 0;
     for (const item of prepared) {
       const useWorksheet = usesHardcodedWorksheet(config, inputScenes);
       let clips: { url: string; kind?: "video" | "image" }[];
@@ -258,6 +260,19 @@ export class ShortCreator {
           },
         ];
       } else {
+        this.progressById.set(
+          videoId,
+          5 + Math.floor((sceneIndex / Math.max(1, sceneCount)) * 10),
+        );
+        logger.info(
+          {
+            videoId,
+            scene: sceneIndex + 1,
+            sceneCount,
+            terms: item.input.searchTerms,
+          },
+          "Fetching B-roll",
+        );
         const wanted = clipCountForDuration(item.audioLength);
         const found = await this.stockMedia.findClips(
           item.input.searchTerms,
@@ -306,7 +321,9 @@ export class ShortCreator {
       });
 
       totalDuration += item.audioLength;
+      sceneIndex += 1;
     }
+    this.progressById.set(videoId, 15);
 
     const selectedMusic = this.findMusic(totalDuration, config.music);
     logger.info(
@@ -369,7 +386,10 @@ export class ShortCreator {
       videoId,
       orientation,
       (progress) => {
-        this.progressById.set(videoId, Math.max(5, Math.floor(progress * 100)));
+        this.progressById.set(
+          videoId,
+          Math.max(15, Math.floor(progress * 100)),
+        );
       },
     );
     logger.info(
@@ -646,32 +666,61 @@ function speechBoundsFromWav(
   };
 }
 
-function downloadHttpFile(url: string, dest: string): Promise<void> {
+function downloadHttpFile(
+  url: string,
+  dest: string,
+  timeoutMs = 20000,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const client = url.startsWith("https") ? https : http;
+    let settled = false;
+    const fail = (error: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      fs.unlink(dest, () => {});
+      reject(error);
+    };
     const request = client.get(url, (response: http.IncomingMessage) => {
       const status = response.statusCode ?? 0;
       const location = response.headers.location;
       if (status >= 300 && status < 400 && location) {
+        request.destroy();
         const nextUrl = new URL(location, url).toString();
-        downloadHttpFile(nextUrl, dest).then(resolve, reject);
+        downloadHttpFile(nextUrl, dest, timeoutMs).then(resolve, reject);
         return;
       }
       if (status !== 200) {
-        reject(new Error(`Failed to download media: ${status}`));
+        fail(new Error(`Failed to download media: ${status}`));
         return;
       }
       const fileStream = fs.createWriteStream(dest);
+      const timer = setTimeout(() => {
+        response.destroy();
+        fileStream.destroy();
+        fail(new Error(`Download timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
       response.pipe(fileStream);
       fileStream.on("finish", () => {
+        clearTimeout(timer);
         fileStream.close();
-        resolve();
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
       });
-      fileStream.on("error", reject);
+      fileStream.on("error", (error: Error) => {
+        clearTimeout(timer);
+        fail(error);
+      });
+    });
+    request.setTimeout(timeoutMs, () => {
+      request.destroy();
+      fail(new Error(`Download timed out after ${timeoutMs}ms`));
     });
     request.on("error", (err: Error) => {
-      fs.unlink(dest, () => {});
-      reject(err);
+      fail(err);
     });
   });
 }

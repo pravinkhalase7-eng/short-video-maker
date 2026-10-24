@@ -162,6 +162,12 @@ export class PexelsAPI {
         }
 
         logger.error(error, "Error finding video in Pexels API for term");
+        if (
+          error instanceof Error &&
+          /Invalid Pexels API key/i.test(error.message)
+        ) {
+          throw error;
+        }
       }
     }
     logger.error(
