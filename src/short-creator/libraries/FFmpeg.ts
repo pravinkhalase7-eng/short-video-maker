@@ -69,6 +69,31 @@ export class FFMpeg {
     });
   }
 
+  async extractStill(
+    inputPath: string,
+    outputPath: string,
+    atSec = 0.4,
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`FFmpeg still timed out for ${inputPath}`));
+      }, 15000);
+      ffmpeg(inputPath)
+        .seekInput(Math.max(0, atSec))
+        .frames(1)
+        .outputOptions(["-q:v", "3"])
+        .on("end", () => {
+          clearTimeout(timer);
+          resolve(outputPath);
+        })
+        .on("error", (error: unknown) => {
+          clearTimeout(timer);
+          reject(error);
+        })
+        .save(outputPath);
+    });
+  }
+
   async saveToMp3(audio: ArrayBuffer, filePath: string): Promise<string> {
     const inputStream = new Readable();
     inputStream.push(Buffer.from(audio));

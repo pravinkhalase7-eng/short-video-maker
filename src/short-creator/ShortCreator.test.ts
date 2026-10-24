@@ -76,6 +76,9 @@ vi.mock("fluent-ffmpeg", () => {
 
   const ffmpegMock = vi.fn(() => ({
     input: vi.fn().mockReturnThis(),
+    seekInput: vi.fn().mockReturnThis(),
+    frames: vi.fn().mockReturnThis(),
+    outputOptions: vi.fn().mockReturnThis(),
     audioCodec: vi.fn().mockReturnThis(),
     audioBitrate: vi.fn().mockReturnThis(),
     audioChannels: vi.fn().mockReturnThis(),
@@ -155,6 +158,7 @@ test("test me", async () => {
 
   vi.spyOn(ffmpeg, "saveNormalizedAudio").mockResolvedValue("mocked-path.wav");
   vi.spyOn(ffmpeg, "saveToMp3").mockResolvedValue("mocked-path.mp3");
+  vi.spyOn(ffmpeg, "extractStill").mockImplementation(async (_input, output) => output);
 
   const pexelsAPI = new PexelsAPI("mock-api-key");
   vi.spyOn(pexelsAPI, "findVideo").mockResolvedValue({

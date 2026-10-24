@@ -6,7 +6,6 @@ import {
   Sequence,
   interpolate,
   useCurrentFrame,
-  useVideoConfig,
 } from "remotion";
 import type { ReactNode } from "react";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
@@ -22,7 +21,6 @@ export const KenBurnsClip: React.FC<{
   freeze?: boolean;
 }> = ({ src, durationInFrames, index, kind, freeze }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
   const zoomIn = index % 2 === 0;
   const scale = interpolate(
     frame,
@@ -43,7 +41,7 @@ export const KenBurnsClip: React.FC<{
 
   const media = isImage ? (
     <Img src={src} style={mediaStyle} />
-  ) : freeze ? (
+  ) : (
     <OffthreadVideo
       src={src}
       muted
@@ -51,57 +49,14 @@ export const KenBurnsClip: React.FC<{
       acceptableTimeShiftInSeconds={1}
       style={mediaStyle}
     />
-  ) : (
-    <LoopingVideo src={src} durationInFrames={durationInFrames} fps={fps} />
   );
 
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
       <AbsoluteFill style={{ transform: `scale(${scale})` }}>
-        {freeze ? <Freeze frame={4}>{media}</Freeze> : media}
+        {freeze || !isImage ? <Freeze frame={4}>{media}</Freeze> : media}
       </AbsoluteFill>
     </AbsoluteFill>
-  );
-};
-
-const LoopingVideo: React.FC<{
-  src: string;
-  durationInFrames: number;
-  fps: number;
-}> = ({ src, durationInFrames, fps }) => {
-  const restartEvery = Math.max(80, Math.round(fps * 8));
-  const loops = Math.max(1, Math.ceil(durationInFrames / restartEvery));
-  const mediaStyle = {
-    width: "100%",
-    height: "100%",
-    objectFit: "cover" as const,
-  };
-
-  return (
-    <>
-      {Array.from({ length: loops }, (_, index) => {
-        const from = index * restartEvery;
-        const length = Math.min(restartEvery, durationInFrames - from);
-        if (length <= 0) {
-          return null;
-        }
-        return (
-          <Sequence
-            key={`loop-${index}`}
-            from={from}
-            durationInFrames={length}
-          >
-            <OffthreadVideo
-              src={src}
-              muted
-              toneMapped={false}
-              acceptableTimeShiftInSeconds={1}
-              style={mediaStyle}
-            />
-          </Sequence>
-        );
-      })}
-    </>
   );
 };
 

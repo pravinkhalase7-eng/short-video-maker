@@ -294,10 +294,31 @@ export class ShortCreator {
               `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
             );
             await downloadHttpFile(clip.url, tempMediaPath);
-            return {
-              url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
-              kind: clip.kind,
-            };
+            if (isImage) {
+              return {
+                url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
+                kind: "image" as const,
+              };
+            }
+            const stillFileName = `${item.tempId}-c${clipIndex}.jpg`;
+            const stillPath = path.join(this.config.tempDirPath, stillFileName);
+            tempFiles.push(stillPath);
+            try {
+              await this.ffmpeg.extractStill(tempMediaPath, stillPath);
+              return {
+                url: this.remotionAssetUrl(`/api/tmp/${stillFileName}`),
+                kind: "image" as const,
+              };
+            } catch (error: unknown) {
+              logger.warn(
+                { error, clip: clip.url },
+                "Could not freeze B-roll clip; rendering the video file",
+              );
+              return {
+                url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
+                kind: clip.kind,
+              };
+            }
           }),
         );
         for (const clip of found) {
