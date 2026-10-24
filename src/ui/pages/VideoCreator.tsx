@@ -40,7 +40,12 @@ import {
   VideoFormat,
   QuizEnding,
 } from "../../types/shorts";
-import { codeSnippetsFromScenes, quizRevealSpeech, quizTimeUpSpeech } from "../../components/utils";
+import {
+  codeSnippetsFromScenes,
+  quizRevealSpeech,
+  quizTimeUpSpeech,
+  replaceSnippetInCardBody,
+} from "../../components/utils";
 import { CodeSnippetPreview } from "../components/CodeSnippetPreview";
 
 interface SceneFormData {
@@ -126,6 +131,7 @@ const VideoCreator: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [quizRevealLetter, setQuizRevealLetter] = useState("");
+  const [snippetSceneIndexes, setSnippetSceneIndexes] = useState<number[]>([]);
   const [voices, setVoices] = useState<VoiceEnum[]>([]);
   const [musicTags, setMusicTags] = useState<MusicMoodEnum[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -192,6 +198,7 @@ const VideoCreator: React.FC = () => {
 
     setGenerating(true);
     setScriptReady(false);
+    setSnippetSceneIndexes([]);
     setExplanation("");
     setError(null);
     setSuccess(null);
@@ -268,6 +275,9 @@ const VideoCreator: React.FC = () => {
           .find((value) => /^[A-D]$/i.test(value))
           ?.toUpperCase() || "";
       setQuizRevealLetter(revealLetter);
+      setSnippetSceneIndexes(
+        codeSnippetsFromScenes(generated.scenes).map((item) => item.sceneIndex),
+      );
       setScriptReady(true);
       setExplanation(generated.explanation || "");
       if ((generated.config.format ?? "story") === "quiz") {
@@ -299,7 +309,7 @@ const VideoCreator: React.FC = () => {
   };
 
   const buildApiScenes = (): SceneInput[] =>
-    scenes.map((scene) => ({
+    scenes.map((scene, index) => ({
       text: scene.text,
       searchTerms: scene.searchTerms
         .split(",")
@@ -314,10 +324,12 @@ const VideoCreator: React.FC = () => {
             kind:
               config.format === "quiz"
                 ? "quiz"
-                : inferCardKind(
-                    scene.exampleCardTitle,
-                    scene.exampleCardBody,
-                  ),
+                : snippetSceneIndexes.includes(index)
+                  ? "code"
+                  : inferCardKind(
+                      scene.exampleCardTitle,
+                      scene.exampleCardBody,
+                    ),
           }
         : undefined,
     }));
@@ -376,6 +388,44 @@ const VideoCreator: React.FC = () => {
   };
 
   const listedSnippets = () => codeSnippetsFromScenes(buildApiScenes());
+
+  const snippetEditors = () => {
+    const extracted = listedSnippets();
+    const indexes = snippetSceneIndexes.length
+      ? snippetSceneIndexes
+      : extracted.map((item) => item.sceneIndex);
+    return indexes.flatMap((sceneIndex) => {
+      const scene = scenes[sceneIndex];
+      if (!scene) {
+        return [];
+      }
+      const extractedItem = extracted.find((item) => item.sceneIndex === sceneIndex);
+      const code = extractedItem?.code ?? scene.exampleCardBody;
+      return [
+        {
+          sceneIndex,
+          title:
+            extractedItem?.title ||
+            scene.exampleCardTitle.trim() ||
+            `Scene ${sceneIndex + 1}`,
+          filename: extractedItem?.filename || "main.py",
+          code,
+        },
+      ];
+    });
+  };
+
+  const handleSnippetChange = (sceneIndex: number, nextCode: string) => {
+    const scene = scenes[sceneIndex];
+    if (!scene) {
+      return;
+    }
+    handleSceneChange(
+      sceneIndex,
+      "exampleCardBody",
+      replaceSnippetInCardBody(scene.exampleCardBody, nextCode),
+    );
+  };
 
   const saveSnippetPng = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -507,19 +557,26 @@ const VideoCreator: React.FC = () => {
           edit the video yourself. Longer videos take more time to render.
         </Typography>
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={7}>
+          <Grid item xs={12}>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
               Length
             </Typography>
             <ToggleButtonGroup
               exclusive
-              fullWidth
               color="primary"
               value={config.targetDurationSec ?? 30}
               onChange={(_event, value: TargetDurationSec | null) => {
                 if (value) {
                   handleConfigChange("targetDurationSec", value);
                 }
+              }}
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                width: "100%",
+                "& .MuiToggleButton-root": {
+                  flex: "1 1 72px",
+                },
               }}
             >
               {TARGET_DURATION_SECONDS.map((seconds) => (
@@ -541,6 +598,7 @@ const VideoCreator: React.FC = () => {
               onChange={(_event, value: VideoFormat | null) => {
                 if (value) {
                   setScriptReady(false);
+                  setSnippetSceneIndexes([]);
                   setExplanation("");
                   setPosterUrl((previous) => {
                     if (previous) {
@@ -596,7 +654,7 @@ const VideoCreator: React.FC = () => {
           placeholder={
             config.format === "quiz"
               ? "1. What is the output?\nx = [1, 2, 3]\ny = x\ny.append(4)\nprint(x)\n\nA) [1, 2, 3]\nB) [1, 2, 3, 4]\nC) [4, 1, 2, 3]\nD) Error"
-              : "A 30-second portrait video about morning coffee and starting a focused day. Chill music, female voice."
+              : "A portrait video about morning coffee and starting a focused day. Chill music, female voice."
           }
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -748,22 +806,26 @@ const VideoCreator: React.FC = () => {
         </Box>
       ) : null}
 
-      {scriptReady && listedSnippets().length > 0 ? (
+      {scriptReady && snippetEditors().length > 0 ? (
         <Box sx={{ mb: 4 }}>
           <Typography variant="h5" component="h2" gutterBottom>
             Code snippets
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            These windows are what can appear in the Reel. Turn them off below
-            if you want B-roll only. You can still download the PNGs.
+            Edit the program in this box. Create Video burns whatever is here
+            into the Reel. Turn snippets off below for B-roll only; you can
+            still download the PNGs.
           </Typography>
           <Grid container spacing={2}>
-            {listedSnippets().map((snippet) => (
-              <Grid item xs={12} md={6} key={`snippet-${snippet.sceneIndex}`}>
+            {snippetEditors().map((snippet) => (
+              <Grid item xs={12} key={`snippet-${snippet.sceneIndex}`}>
                 <CodeSnippetPreview
                   title={`Scene ${snippet.sceneIndex + 1} · ${snippet.title}`}
                   filename={snippet.filename}
                   code={snippet.code}
+                  onChange={(nextCode) =>
+                    handleSnippetChange(snippet.sceneIndex, nextCode)
+                  }
                 />
                 <Button
                   size="small"
@@ -932,8 +994,8 @@ const VideoCreator: React.FC = () => {
                   onChange={(e) =>
                     handleSceneChange(index, "exampleCardBody", e.target.value)
                   }
-              helperText="Question, optional code, then A) B) C) D) outputs"
-                  inputProps={{ maxLength: 640 }}
+              helperText="Question, optional code, then A) B) C) D) outputs. Code scenes also have an editable program box above."
+                  inputProps={{ maxLength: 1200 }}
                 />
               </Grid>
               <Grid item xs={12} sm={4}>

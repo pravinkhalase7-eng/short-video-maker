@@ -21,10 +21,16 @@ export enum CaptionPositionEnum {
   bottom = "bottom",
 }
 
-export const TARGET_DURATION_SECONDS = [30, 60, 90, 120] as const;
+export const TARGET_DURATION_SECONDS = [
+  10, 15, 20, 30, 45, 60, 90, 120,
+] as const;
 export type TargetDurationSec = (typeof TARGET_DURATION_SECONDS)[number];
 export const targetDurationSecSchema = z.union([
+  z.literal(10),
+  z.literal(15),
+  z.literal(20),
   z.literal(30),
+  z.literal(45),
   z.literal(60),
   z.literal(90),
   z.literal(120),
@@ -206,7 +212,9 @@ export const renderConfig = z.object({
     .describe("Up to three short recap chips on the end card"),
   targetDurationSec: targetDurationSecSchema
     .optional()
-    .describe("Finished video length to aim for: 30, 60, 90, or 120 seconds"),
+    .describe(
+      "Finished video length to aim for: 10, 15, 20, 30, 45, 60, 90, or 120 seconds",
+    ),
   format: videoFormatSchema
     .optional()
     .describe(

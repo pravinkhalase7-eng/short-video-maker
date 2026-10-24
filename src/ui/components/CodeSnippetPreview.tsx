@@ -1,22 +1,33 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Box, Typography } from "@mui/material";
 
 export const CodeSnippetPreview: React.FC<{
   title: string;
   filename: string;
   code: string;
-}> = ({ title, filename, code }) => {
-  const lines = code.split(/\r?\n/).slice(0, 16);
+  onChange?: (code: string) => void;
+}> = ({ title, filename, code, onChange }) => {
+  const editable = Boolean(onChange);
+  const [draft, setDraft] = useState(code);
+  const focused = useRef(false);
+  const lines = (editable ? draft : code).split(/\r?\n/);
   const language = filename.endsWith(".java")
     ? "Java"
     : filename.endsWith(".js")
       ? "JavaScript"
       : "Python";
 
+  useEffect(() => {
+    if (!focused.current) {
+      setDraft(code);
+    }
+  }, [code]);
+
   return (
     <Box sx={{ width: "100%" }}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         {title} · {filename}
+        {editable ? " · edit the program, then Create Video" : ""}
       </Typography>
       <Box
         sx={{
@@ -62,34 +73,73 @@ export const CodeSnippetPreview: React.FC<{
             {filename} — Visual Studio Code
           </Typography>
         </Box>
-        <Box
-          component="pre"
-          sx={{
-            m: 0,
-            px: 2,
-            py: 1.5,
-            minHeight: 140,
-            color: "#d4d4d4",
-            fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            fontSize: 13,
-            lineHeight: 1.45,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
-        >
-          {lines.map((line, index) => (
-            <Box key={`${filename}-${index}`} component="span" sx={{ display: "block" }}>
-              <Box
-                component="span"
-                sx={{ color: "#858585", display: "inline-block", width: 28 }}
-              >
-                {index + 1}
+        {editable ? (
+          <Box
+            component="textarea"
+            value={draft}
+            spellCheck={false}
+            onFocus={() => {
+              focused.current = true;
+            }}
+            onBlur={() => {
+              focused.current = false;
+            }}
+            onChange={(event) => {
+              const next = event.target.value;
+              setDraft(next);
+              onChange?.(next);
+            }}
+            sx={{
+              display: "block",
+              width: "100%",
+              boxSizing: "border-box",
+              m: 0,
+              px: 2,
+              py: 1.5,
+              minHeight: 220,
+              border: 0,
+              outline: 0,
+              resize: "vertical",
+              bgcolor: "#1e1e1e",
+              color: "#d4d4d4",
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              fontSize: 13,
+              lineHeight: 1.45,
+              whiteSpace: "pre",
+              overflow: "auto",
+            }}
+          />
+        ) : (
+          <Box
+            component="pre"
+            sx={{
+              m: 0,
+              px: 2,
+              py: 1.5,
+              minHeight: 140,
+              color: "#d4d4d4",
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              fontSize: 13,
+              lineHeight: 1.45,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {lines.slice(0, 16).map((line, index) => (
+              <Box key={`${filename}-${index}`} component="span" sx={{ display: "block" }}>
+                <Box
+                  component="span"
+                  sx={{ color: "#858585", display: "inline-block", width: 28 }}
+                >
+                  {index + 1}
+                </Box>
+                {line || " "}
               </Box>
-              {line || " "}
-            </Box>
-          ))}
-        </Box>
+            ))}
+          </Box>
+        )}
         <Box
           sx={{
             display: "flex",
@@ -103,7 +153,7 @@ export const CodeSnippetPreview: React.FC<{
           }}
         >
           <span>{language}</span>
-          <span>{`UTF-8  Ln ${lines.length}`}</span>
+          <span>{`UTF-8  Ln ${Math.max(1, lines.length)}`}</span>
         </Box>
       </Box>
     </Box>

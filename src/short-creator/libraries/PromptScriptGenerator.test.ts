@@ -14,7 +14,7 @@ import {
   VoiceEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
-import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, isQuizTimeUpCard, captionsFromSpeech, overlayHitFrame, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, cardLooksLikeQuiz, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL, snippetCodeFromText, snippetFilename, codeSnippetsFromScenes } from "../../components/utils";
+import { getDuckedMusicVolume, getOverlayTiming, clipCaptionPageToSafeWindow, getSceneSequence, stretchSceneDurations, clipCountForDuration, splitClipWindows, isPunchCaptionWord, sceneClips, isQuizQuestionCard, isQuizAnswerCard, isQuizTimeUpCard, captionsFromSpeech, overlayHitFrame, parseQuizSheet, parsePastedQuiz, usesHardcodedWorksheet, cardLooksLikeQuiz, quizOptionReveal, quizCountdownTiming, quizCardTitle, quizSeriesBadge, quizSeriesHeadline, quizCompositionFps, quizHoldFreezeFrame, INSTAGRAM_REEL, snippetCodeFromText, snippetFilename, codeSnippetsFromScenes, replaceSnippetInCardBody } from "../../components/utils";
 
 test("local generator expands a short topic into scenes and search terms", () => {
   const result = generateLocalScript(
@@ -377,6 +377,36 @@ test("60 second stories use more scenes than the 30 second default", () => {
   expect(longer.scenes.length).toBeGreaterThan(short.scenes.length);
 });
 
+test("10 and 15 second stories stay shorter than the 30 second default", () => {
+  const tiny = generateLocalScript("how banana helps", {
+    targetDurationSec: 10,
+    format: "story",
+  });
+  const fifteen = generateLocalScript("how banana helps", {
+    targetDurationSec: 15,
+    format: "story",
+  });
+  const medium = generateLocalScript("how banana helps", {
+    targetDurationSec: 30,
+    format: "story",
+  });
+
+  expect(tiny.config.targetDurationSec).toBe(10);
+  expect(fifteen.config.targetDurationSec).toBe(15);
+  expect(tiny.config.hookDurationMs).toBe(1400);
+  expect(tiny.config.paddingBack).toBe(1600);
+  expect(tiny.scenes.length).toBeLessThan(medium.scenes.length);
+  expect(tiny.scenes.length).toBeGreaterThanOrEqual(
+    scriptLimits({ targetDurationSec: 10, format: "story" }).minScenes,
+  );
+  expect(
+    scriptLimits({ targetDurationSec: 10, format: "quiz" }).holdMs,
+  ).toBe(4000);
+  expect(
+    scriptLimits({ targetDurationSec: 20, format: "quiz" }).holdMs,
+  ).toBe(8000);
+});
+
 test("quiz format writes one question worksheet then the answer", () => {
   const result = generateLocalScript("how banana helps", {
     targetDurationSec: 30,
@@ -689,6 +719,32 @@ test("story code cards become downloadable snippet assets", () => {
   expect(snippets).toHaveLength(1);
   expect(snippets[0].filename).toBe("main.py");
   expect(snippets[0].code).toContain("def f(x=[]):");
+});
+
+test("replaceSnippetInCardBody edits the program and keeps quiz options", () => {
+  const quizBody = `What is the output?
+x = [1, 2, 3]
+y = x
+print(x)
+A) [1, 2, 3]
+B) [1, 2, 3, 4]
+C) Error`;
+  const nextQuiz = replaceSnippetInCardBody(
+    quizBody,
+    "x = [1, 2, 3]\ny = x[:]\nprint(x)",
+  );
+  expect(nextQuiz).toContain("x = [1, 2, 3]");
+  expect(nextQuiz).toContain("y = x[:]");
+  expect(nextQuiz).toContain("A) [1, 2, 3]");
+  expect(nextQuiz).toContain("B) [1, 2, 3, 4]");
+  expect(snippetCodeFromText(nextQuiz)).toContain("y = x[:]");
+
+  const storyNext = replaceSnippetInCardBody(
+    "def f(x=[]):\n    x.append(1)\n    return x",
+    "def f(x=None):\n    if x is None:\n        x = []\n    x.append(1)\n    return x",
+  );
+  expect(storyNext).toContain("x is None");
+  expect(storyNext).not.toContain("x=[]");
 });
 
 test("overlay hits land on the spoken word instead of a fixed delay", () => {

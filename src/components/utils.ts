@@ -800,6 +800,31 @@ export function codeSnippetsFromScenes(
   });
 }
 
+export function replaceSnippetInCardBody(body: string, nextCode: string): string {
+  const code = nextCode.replace(/\s+$/, "").replace(/^\n+/, "");
+  const raw = (body || "").replace(/\s+$/, "").replace(/^\n+/, "");
+  if (!raw) {
+    return code;
+  }
+  const sheet = parseQuizSheet({ title: "Quiz", body: raw });
+  if (sheet.options.length >= 2) {
+    const question = sheet.question?.trim() || "What is the output?";
+    const options = sheet.options
+      .map((option) => `${option.letter}) ${option.text}`)
+      .join("\n");
+    const answer = sheet.answer ? `\nAnswer: ${sheet.answer}` : "";
+    if (!code.trim()) {
+      return `${question}\n\n${options}${answer}`.trim();
+    }
+    return `${question}\n${code}\n\n${options}${answer}`.trim();
+  }
+  const current = snippetCodeFromText(raw);
+  if (current && raw.includes(current)) {
+    return raw.replace(current, code);
+  }
+  return code || raw;
+}
+
 export function looksLikeCode(text: string): boolean {
   return /[{};=>]|::|->|function\s|\bclass\s|\bpublic\s|\bconst\s|\blet\s|\bvar\s|\bdef\s|\breturn\b|\byield\b|\bprint\s*\(|\bpass\b|\bfor\b|\bwhile\b|\belif\b|\belse\b|\btry\b|\bexcept\b|\bfinally\b|\bwith\b|\bfrom\b|\bimport\b|\bbreak\b|\bcontinue\b|\brange\s*\(|:\s*$|\.\w+\(|\.\w+\s*=|<\w+>|Stream</.test(
     text,

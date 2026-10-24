@@ -15,6 +15,7 @@ import {
   type TargetDurationSec,
   type VideoFormat,
   type QuizEnding,
+  TARGET_DURATION_SECONDS,
 } from "../../types/shorts";
 
 export type GeneratedShort = CreateShortInput & {
@@ -136,8 +137,11 @@ export function normalizeScriptOptions(
   prompt?: string,
 ): NormalizedScriptOptions {
   const duration = options?.targetDurationSec;
-  const targetDurationSec =
-    duration === 60 || duration === 90 || duration === 120 ? duration : 30;
+  const targetDurationSec = (
+    TARGET_DURATION_SECONDS as readonly number[]
+  ).includes(duration as number)
+    ? (duration as TargetDurationSec)
+    : 30;
   const pastedQuiz = Boolean(
     prompt && parsePastedQuiz(wrapPastedPythonSnippet(prompt)),
   );
@@ -157,15 +161,29 @@ export function scriptLimits(options: NormalizedScriptOptions): {
   const { targetDurationSec, format } = options;
   if (format === "quiz") {
     const holdMs =
-      targetDurationSec <= 30 ? 11000 : targetDurationSec <= 60 ? 13000 : 14000;
+      targetDurationSec <= 10
+        ? 4000
+        : targetDurationSec <= 15
+          ? 6000
+          : targetDurationSec <= 20
+            ? 8000
+            : targetDurationSec <= 30
+              ? 11000
+              : targetDurationSec <= 60
+                ? 13000
+                : 14000;
     const wordTarget =
-      targetDurationSec === 120
+      targetDurationSec >= 120
         ? 260
-        : targetDurationSec === 90
+        : targetDurationSec >= 90
           ? 190
-          : targetDurationSec === 60
+          : targetDurationSec >= 60
             ? 120
-            : 55;
+            : targetDurationSec >= 45
+              ? 85
+              : targetDurationSec >= 20
+                ? 55
+                : 40;
     return {
       questions: 1,
       minScenes: 2,
@@ -178,7 +196,11 @@ export function scriptLimits(options: NormalizedScriptOptions): {
     TargetDurationSec,
     { minScenes: number; maxScenes: number; wordTarget: number }
   > = {
+    10: { minScenes: 2, maxScenes: 3, wordTarget: 22 },
+    15: { minScenes: 2, maxScenes: 3, wordTarget: 32 },
+    20: { minScenes: 3, maxScenes: 4, wordTarget: 45 },
     30: { minScenes: 4, maxScenes: 6, wordTarget: 65 },
+    45: { minScenes: 5, maxScenes: 7, wordTarget: 100 },
     60: { minScenes: 6, maxScenes: 8, wordTarget: 140 },
     90: { minScenes: 8, maxScenes: 12, wordTarget: 215 },
     120: { minScenes: 10, maxScenes: 14, wordTarget: 290 },
@@ -264,7 +286,13 @@ function buildSystemPrompt(options: NormalizedScriptOptions): string {
       : `DURATION AND FORMAT:
 - STORY MODE. Finished video length: ${options.targetDurationSec} seconds.
 - Write ${limits.minScenes} to ${limits.maxScenes} scenes.
-- About ${limits.wordTarget} spoken words total. This is not three tiny sentences.
+- About ${limits.wordTarget} spoken words total.${
+        options.targetDurationSec <= 20
+          ? " Keep it tight. Do not pad with extra scenes."
+          : " This is not three tiny sentences."
+      }
+- hookDurationMs: ${options.targetDurationSec <= 15 ? 1400 : 2200}
+- paddingBack: ${options.targetDurationSec <= 15 ? 1600 : 2500}
 - Each scene: 1-3 spoken sentences, still easy to say, naming the subject.
 - Talk to the viewer as "you". Open on a moment they have felt, not a lecture ("you asked ChatGPT and it sounded sure" not "AI hallucination is defined as").
 - Last scene is the takeaway.`;
@@ -317,7 +345,7 @@ export function generateLocalScript(
   return {
     scenes,
     config: {
-      paddingBack: 2500,
+      paddingBack: normalized.targetDurationSec <= 15 ? 1600 : 2500,
       music: inferMood(prompt, normalized.format),
       captionPosition: CaptionPositionEnum.bottom,
       captionBackgroundColor: inferCaptionColor(prompt),
@@ -325,7 +353,12 @@ export function generateLocalScript(
       orientation: inferOrientation(prompt),
       musicVolume: inferMusicVolume(prompt, normalized.format),
       hookText: hookText || undefined,
-      hookDurationMs: normalized.format === "quiz" ? 0 : 2200,
+      hookDurationMs:
+        normalized.format === "quiz"
+          ? 0
+          : normalized.targetDurationSec <= 15
+            ? 1400
+            : 2200,
       endCardText:
         normalized.format === "quiz"
           ? normalized.quizEnding === "timeup"
@@ -561,7 +594,10 @@ export function parseGeneratedShort(
   const result = {
     scenes: pinTopicSearchTerms(withCards, hookText, userPrompt),
     config: {
-      paddingBack: normalizePadding(config.paddingBack),
+      paddingBack:
+        normalized.targetDurationSec <= 15
+          ? Math.min(normalizePadding(config.paddingBack), 1600)
+          : normalizePadding(config.paddingBack),
       music: resolveMusic(userPrompt || "", normalized.format, config.music),
       captionPosition: pickEnum(
         config.captionPosition,
@@ -590,7 +626,9 @@ export function parseGeneratedShort(
       hookDurationMs:
         normalized.format === "quiz"
           ? 0
-          : normalizeHookDuration(config.hookDurationMs),
+          : normalized.targetDurationSec <= 15
+            ? Math.min(normalizeHookDuration(config.hookDurationMs), 1400)
+            : normalizeHookDuration(config.hookDurationMs),
       endCardText:
         normalizeOptionalText(config.endCardText, 90) ||
         (normalized.format === "quiz"
@@ -969,7 +1007,7 @@ function expandTopic(topic: string, sceneCount = 3): string[] {
     `If you only remember one thing about ${subject}, remember this.`,
     `That is why ${subject} is worth doing today, not later.`,
   ];
-  return beats.slice(0, Math.max(3, sceneCount));
+  return beats.slice(0, Math.max(2, sceneCount));
 }
 
 function makeHookText(topic: string): string {
