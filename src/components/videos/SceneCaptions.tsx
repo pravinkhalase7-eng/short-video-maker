@@ -217,8 +217,7 @@ const KineticCaptionLine: React.FC<{
             const wordX = interpolate(
               local,
               [0, 6],
-              spoken ? dir * (punch ? -56 : 36) : dir * 28,
-              0,
+              [spoken ? dir * (punch ? -56 : 36) : dir * 28, 0],
               {
                 extrapolateLeft: "clamp",
                 extrapolateRight: "clamp",
