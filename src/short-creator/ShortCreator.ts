@@ -173,8 +173,8 @@ export class ShortCreator {
     );
     const scenes: Scene[] = [];
     let totalDuration = 0;
-    const excludeVideoIds = [];
-    const tempFiles = [];
+    const excludeVideoIds: string[] = [];
+    const tempFiles: string[] = [];
 
     const orientation: OrientationEnum =
       config.orientation || OrientationEnum.portrait;
