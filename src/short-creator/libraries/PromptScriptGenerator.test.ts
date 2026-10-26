@@ -407,6 +407,21 @@ test("10 and 15 second stories stay shorter than the 30 second default", () => {
   ).toBe(8000);
 });
 
+test("python triangle stories walk the loop instead of teasing it", () => {
+  const result = generateLocalScript("right angle triangle pattern in python", {
+    targetDurationSec: 15,
+    format: "story",
+  });
+
+  expect(result.scenes.length).toBeGreaterThanOrEqual(3);
+  expect(result.scenes.some((scene) => scene.exampleCard?.body?.includes("range"))).toBe(
+    true,
+  );
+  expect(result.scenes.map((scene) => scene.text).join(" ")).toMatch(
+    /repeats the star|row one is one star/i,
+  );
+});
+
 test("quiz format writes one question worksheet then the answer", () => {
   const result = generateLocalScript("how banana helps", {
     targetDurationSec: 30,

@@ -309,6 +309,45 @@ test("story posts about AI do not get coding hashtags", () => {
   ]);
 });
 
+test("coding story posts explain the snippet instead of only the last teaser line", () => {
+  const post = buildInstagramPost({
+    id: "cmvpj665p00070qo2aiwj4e0j",
+    prompt: "right angle triangle pattern in python",
+    scenes: [
+      {
+        text: "You need a right angle triangle in Python, but writing nested loops feels clunky.",
+        searchTerms: ["python", "code"],
+        exampleCard: {
+          kind: "code",
+          title: "TRIANGLE CODE",
+          body: "n = 5\nfor i in range(1, n + 1):\n print('*' * i)",
+        },
+      },
+      {
+        text: "Just multiply your star character by the loop index to build each row instantly.",
+        searchTerms: ["python", "code"],
+        exampleCard: {
+          kind: "code",
+          title: "OUTPUT",
+          body: "*\n**\n***\n****\n*****",
+        },
+      },
+    ],
+    config: { format: "story" },
+  });
+
+  expect(post.explanation).toMatch(/repeats the star/i);
+  expect(post.explanation).toMatch(/row 1 is one star/i);
+  expect(
+    hydrateVideoPostMeta({
+      ...post,
+      instagramText: "",
+      youtubeTitle: "",
+      youtubeDescription: "",
+    }).explanation,
+  ).toMatch(/repeats the star/i);
+});
+
 test("details can recover a voiceover script from older saved posts", () => {
   expect(
     resolveVoiceoverScript({

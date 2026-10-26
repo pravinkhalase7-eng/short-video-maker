@@ -915,6 +915,39 @@ export function snippetFilename(code: string): string {
   return "main.py";
 }
 
+export function explainStorySnippet(code: string): string {
+  const text = (code || "").replace(/\r/g, "").trim();
+  if (!text) {
+    return "";
+  }
+  const starRepeat = /(['"])\*\1\s*\*\s*\w+/.test(text);
+  const ranged = /for\s+\w+\s+in\s+range\s*\(/i.test(text);
+  if (starRepeat && ranged) {
+    return "The loop runs i from 1 to n. In Python, '*' * i repeats the star i times, so row 1 is one star and each next row is one star longer. That prints a right triangle.";
+  }
+  if (starRepeat) {
+    return "In Python, a string times a number repeats that string. '*' * i is i stars on that row.";
+  }
+  if (ranged && /print\s*\(/i.test(text)) {
+    return "The loop counts up with range. Each pass prints the next line, so the pattern grows row by row.";
+  }
+  return "";
+}
+
+export function storyWalkAlreadySaid(existing: string, walk: string): boolean {
+  const have = existing.toLowerCase().replace(/\s+/g, " ").trim();
+  const lesson = walk.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!have || !lesson) {
+    return false;
+  }
+  if (
+    /\brepeats the star\b|\bone star longer\b|\brow 1 is one star\b/.test(have)
+  ) {
+    return true;
+  }
+  return have.includes(lesson.slice(0, Math.min(48, lesson.length)));
+}
+
 export function quizCaptionExplanation(sheet: QuizSheet): string {
   const parts = quizExplainParts(sheet);
   return `${parts.lead}${parts.why}`.trim();

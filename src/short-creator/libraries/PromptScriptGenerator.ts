@@ -1,7 +1,7 @@
 import { Config } from "../../config";
 import { logger } from "../../logger";
 import { spawnSync } from "node:child_process";
-import { cardLooksLikeQuiz, looksLikeCode, looksLikeCodeLine, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation, quizRevealSpeech, quizTimeUpSpeech } from "../../components/utils";
+import { cardLooksLikeQuiz, explainStorySnippet, looksLikeCode, looksLikeCodeLine, parsePastedQuiz, parseQuizSheet, quizCaptionExplanation, quizRevealSpeech, quizTimeUpSpeech } from "../../components/utils";
 import {
   CaptionPositionEnum,
   MusicMoodEnum,
@@ -259,8 +259,14 @@ Rules:
 - hookDurationMs: 2200
 - captionBackgroundColor: a CSS color. Default blue.`;
 
-function buildSystemPrompt(options: NormalizedScriptOptions): string {
+function buildSystemPrompt(options: NormalizedScriptOptions, prompt = ""): string {
   const limits = scriptLimits(options);
+  const codeStory = options.format === "story" && isCodeTopic(prompt);
+  const minScenes = codeStory ? Math.max(3, limits.minScenes) : limits.minScenes;
+  const maxScenes = Math.max(minScenes, limits.maxScenes);
+  const wordTarget = codeStory
+    ? Math.max(limits.wordTarget, 48)
+    : limits.wordTarget;
   const durationRules =
     options.format === "quiz"
       ? `DURATION AND FORMAT:
@@ -285,16 +291,22 @@ function buildSystemPrompt(options: NormalizedScriptOptions): string {
 - About ${limits.wordTarget} spoken words total.`
       : `DURATION AND FORMAT:
 - STORY MODE. Finished video length: ${options.targetDurationSec} seconds.
-- Write ${limits.minScenes} to ${limits.maxScenes} scenes.
-- About ${limits.wordTarget} spoken words total.${
-        options.targetDurationSec <= 20
-          ? " Keep it tight. Do not pad with extra scenes."
-          : " This is not three tiny sentences."
+- Write ${minScenes} to ${maxScenes} scenes.
+- About ${wordTarget} spoken words total.${
+        codeStory
+          ? " This is a mini tutorial. Spend the words teaching the snippet, not teasing it."
+          : options.targetDurationSec <= 20
+            ? " Keep it tight. Do not pad with extra scenes."
+            : " This is not three tiny sentences."
       }
 - hookDurationMs: ${options.targetDurationSec <= 15 ? 1400 : 2200}
 - paddingBack: ${options.targetDurationSec <= 15 ? 1600 : 2500}
 - Each scene: 1-3 spoken sentences, still easy to say, naming the subject.
-- Talk to the viewer as "you". Open on a moment they have felt, not a lecture ("you asked ChatGPT and it sounded sure" not "AI hallucination is defined as").
+- Talk to the viewer as "you".${
+        codeStory
+          ? " PROGRAMMING TOPIC: put a short real snippet on screen (kind \"code\"). Spoken lines MUST walk that snippet in beginner English: what the first line sets, what the loop does, what one iteration prints. Give a concrete row (row 1 is one star, row 2 is two). Do not spend a scene only saying it feels clunky or happens instantly. Start explaining on scene 1."
+          : ' Open on a moment they have felt, not a lecture ("you asked ChatGPT and it sounded sure" not "AI hallucination is defined as").'
+      }
 - Last scene is the takeaway.`;
 
   return `${durationRules}\n\n${SYSTEM_PROMPT}`;
@@ -328,16 +340,22 @@ export function generateLocalScript(
           normalized.quizEnding,
         )
       : pinTopicSearchTerms(
-          fillMissingExampleCards(
-            splitIntoSceneTexts(prompt, limits.minScenes, limits.maxScenes)
-              .map(stripFiller)
-              .map((text, index) => ({
-                text,
-                searchTerms: searchTermsFor(text, prompt),
-                overlayText: makeOverlayText(text, index),
-              })),
-            hookText,
-          ),
+          isCodeTopic(prompt)
+            ? localCodeStoryScenes(
+                prompt,
+                Math.max(3, limits.minScenes),
+                Math.max(3, limits.maxScenes),
+              )
+            : fillMissingExampleCards(
+                splitIntoSceneTexts(prompt, limits.minScenes, limits.maxScenes)
+                  .map(stripFiller)
+                  .map((text, index) => ({
+                    text,
+                    searchTerms: searchTermsFor(text, prompt),
+                    overlayText: makeOverlayText(text, index),
+                  })),
+                hookText,
+              ),
           hookText,
           prompt,
         );
@@ -445,7 +463,7 @@ export class PromptScriptGenerator {
                 role: "user",
                 parts: [
                   {
-                    text: `${buildSystemPrompt(options)}\n\nUser request:\n${prompt}${pastedQuizHint(prompt, options)}\n\nFormat: ${options.format}. Target duration: ${options.targetDurationSec} seconds.`,
+                    text: `${buildSystemPrompt(options, prompt)}\n\nUser request:\n${prompt}${pastedQuizHint(prompt, options)}\n\nFormat: ${options.format}. Target duration: ${options.targetDurationSec} seconds.`,
                   },
                 ],
               },
@@ -499,7 +517,7 @@ export class PromptScriptGenerator {
         temperature: 0.7,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: buildSystemPrompt(options) },
+          { role: "system", content: buildSystemPrompt(options, prompt) },
           {
             role: "user",
             content: `${prompt}${pastedQuizHint(prompt, options)}\n\nFormat: ${options.format}. Target duration: ${options.targetDurationSec} seconds.`,
@@ -1955,6 +1973,23 @@ export function normalizeExampleCard(value: unknown): ExampleCard | undefined {
 }
 
 function codePresetFor(corpus: string): ExampleCard[] {
+  if (
+    /\b(triangle|pyramid|right\s*angle)\b/i.test(corpus) ||
+    (/\bstars?\b/i.test(corpus) && /\b(pattern|print|loop)\b/i.test(corpus))
+  ) {
+    return [
+      {
+        kind: "code",
+        title: "TRIANGLE",
+        body: "n = 5\nfor i in range(1, n + 1):\n    print('*' * i)",
+      },
+      {
+        kind: "code",
+        title: "OUTPUT",
+        body: "*\n**\n***\n****\n*****",
+      },
+    ];
+  }
   if (/\b(lambda|lambdas|java\s*8|java8)\b/i.test(corpus)) {
     return [
       {
@@ -2046,6 +2081,60 @@ function makeFactCard(
     title,
     body: body.slice(0, 48),
   };
+}
+
+function localCodeStoryScenes(
+  prompt: string,
+  minScenes: number,
+  maxScenes: number,
+): SceneInput[] {
+  const cards = codePresetFor(prompt);
+  const terms = searchTermsFor(prompt, prompt);
+  const code =
+    cards.find((card) => looksLikeCode(card.body))?.body || cards[0]?.body || "";
+  const walk = explainStorySnippet(code);
+  const first = cards[0];
+  const output = cards[1] || cards[0];
+  const triangle =
+    /\b(triangle|pyramid|right\s*angle)\b/i.test(prompt) ||
+    (/\bstars?\b/i.test(prompt) && /\b(pattern|print|loop)\b/i.test(prompt));
+  const scenes: SceneInput[] = [
+    {
+      text: triangle
+        ? "Set n to how many rows you want. Then loop i from 1 to n."
+        : "Here is the short program. Read it top to bottom with me.",
+      searchTerms: terms,
+      overlayText: (first?.title || "CODE").slice(0, 18),
+      exampleCard: first,
+    },
+    {
+      text:
+        walk ||
+        "Each line does one job. Watch what the loop prints on the first pass, then the next.",
+      searchTerms: terms,
+      overlayText: walk ? "HOW" : (cards[1]?.title || "HOW").slice(0, 18),
+      exampleCard: walk ? first : cards[1] || first,
+    },
+  ];
+  if (maxScenes >= 3) {
+    scenes.push({
+      text: triangle
+        ? "Row one is one star. Row five is five stars. That is the right triangle."
+        : "Type this once. Then change one value and watch the output move.",
+      searchTerms: terms,
+      overlayText: (output?.title || "RESULT").slice(0, 18),
+      exampleCard: output,
+    });
+  }
+  while (scenes.length < Math.min(minScenes, maxScenes)) {
+    scenes.push({
+      text: walk || "Keep this snippet visible the next time you write a loop.",
+      searchTerms: terms,
+      overlayText: "TRY IT",
+      exampleCard: output,
+    });
+  }
+  return fillMissingExampleCards(scenes.slice(0, maxScenes));
 }
 
 export function fillMissingExampleCards(

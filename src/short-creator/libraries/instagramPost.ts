@@ -1,9 +1,12 @@
 import {
   codeSnippetsFromScenes,
+  explainStorySnippet,
+  looksLikeCode,
   parsePastedQuiz,
   parseQuizSheet,
   quizInstagramExplanation,
   quizSeriesBadge,
+  storyWalkAlreadySaid,
 } from "../../components/utils";
 import type { RenderConfig, SceneInput } from "../../types/shorts";
 
@@ -233,6 +236,8 @@ export function hydrateVideoPostMeta(meta: VideoPostMeta): VideoPostMeta {
       !new RegExp(`answer is ${marked}\\b`, "i").test(explanation))
   ) {
     explanation = quizInstagramExplanation({ ...pasted, answer: marked });
+  } else if (meta.format !== "quiz") {
+    explanation = withStoryCodeWalk(explanation, meta.snippets);
   }
   const instagramText = compactInstagramText([
     meta.title || "",
@@ -294,10 +299,29 @@ function storyCaption(prompt: string, firstLine?: string, cta?: string): string 
 }
 
 function storyExplanation(scenes: SceneInput[]): string {
-  const last = [...scenes].reverse().find((scene) => scene.text.trim());
-  return (last?.text || "Watch the full video for the takeaway.")
-    .replace(/\s+/g, " ")
-    .trim();
+  const spoken = scenes
+    .map((scene) => (scene.text || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const last =
+    spoken[spoken.length - 1] || "Watch the full video for the takeaway.";
+  const joined = spoken.join(" ").replace(/\s+/g, " ").trim() || last;
+  return withStoryCodeWalk(joined, codeSnippetsFromScenes(scenes));
+}
+
+function withStoryCodeWalk(
+  explanation: string,
+  snippets?: { code: string }[],
+): string {
+  const text = (explanation || "").replace(/\s+/g, " ").trim();
+  const code =
+    (snippets || []).find((item) => looksLikeCode(item.code))?.code ||
+    snippets?.[0]?.code ||
+    "";
+  const walk = explainStorySnippet(code);
+  if (!walk || storyWalkAlreadySaid(text, walk)) {
+    return text;
+  }
+  return `${text} ${walk}`.replace(/\s+/g, " ").trim();
 }
 
 function fiveHashtags(prompt: string, code: string, isQuiz: boolean): string[] {
