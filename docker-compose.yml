@@ -22,6 +22,7 @@ services:
     volumes:
       - shortvideo_videos:/app/data/videos
       - shortvideo_temp:/app/data/temp
+      - shortvideo_broll:/app/data/broll
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3123/health"]
       interval: 20s
@@ -36,6 +37,8 @@ volumes:
     name: shortvideo_videos
   shortvideo_temp:
     name: shortvideo_temp
+  shortvideo_broll:
+    name: shortvideo_broll
 
 networks:
   shortvideo:

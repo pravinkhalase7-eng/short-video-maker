@@ -13,6 +13,7 @@ import { FFMpeg } from "./libraries/FFmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
 import { PixabayAPI } from "./libraries/Pixabay";
 import { StockMedia } from "./libraries/StockMedia";
+import { BrollCache } from "./libraries/BrollCache";
 import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
@@ -55,6 +56,7 @@ export class ShortCreator {
   private busy = false;
   private progressById = new Map<string, number>();
   private stockMedia: StockMedia;
+  private brollCache: BrollCache;
   constructor(
     private config: Config,
     private remotion: Remotion,
@@ -68,6 +70,15 @@ export class ShortCreator {
       pexelsApi,
       new PixabayAPI(config.pixabayApiKey),
     );
+    this.brollCache = new BrollCache(config.brollDirPath);
+  }
+
+  public listBroll() {
+    return this.brollCache.list();
+  }
+
+  public getBrollPath(clipId: string): string | null {
+    return this.brollCache.get(clipId)?.path ?? null;
   }
 
   public status(id: string): VideoStatus {
@@ -274,52 +285,42 @@ export class ShortCreator {
           "Fetching B-roll",
         );
         const wanted = clipCountForDuration(item.audioLength);
-        const found = await this.stockMedia.findClips(
-          item.input.searchTerms,
-          Math.max(2.5, item.audioLength / wanted),
-          excludeVideoIds,
+        const cached = this.brollCache.take(
           orientation,
+          item.input.searchTerms,
           wanted,
+          excludeVideoIds,
         );
+        let found = cached.map((clip) => this.brollCache.toVideo(clip));
+        if (found.length < wanted) {
+          const extra = await this.stockMedia.findClips(
+            item.input.searchTerms,
+            Math.max(2.5, item.audioLength / wanted),
+            [...excludeVideoIds, ...found.map((clip) => clip.id)],
+            orientation,
+            wanted - found.length,
+          );
+          found = [...found, ...extra];
+        } else {
+          logger.info(
+            {
+              videoId,
+              scene: sceneIndex + 1,
+              count: found.length,
+              terms: item.input.searchTerms,
+            },
+            "Reusing cached B-roll",
+          );
+        }
         const downloaded = await Promise.all(
-          found.map(async (clip, clipIndex) => {
-            const isImage = clip.kind === "image";
-            const tempMediaFileName = `${item.tempId}-c${clipIndex}.${isImage ? "jpg" : "mp4"}`;
-            const tempMediaPath = path.join(
-              this.config.tempDirPath,
-              tempMediaFileName,
-            );
-            tempFiles.push(tempMediaPath);
-            logger.debug(
-              `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
-            );
-            await downloadHttpFile(clip.url, tempMediaPath);
-            if (isImage) {
-              return {
-                url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
-                kind: "image" as const,
-              };
-            }
-            const stillFileName = `${item.tempId}-c${clipIndex}.jpg`;
-            const stillPath = path.join(this.config.tempDirPath, stillFileName);
-            tempFiles.push(stillPath);
-            try {
-              await this.ffmpeg.extractStill(tempMediaPath, stillPath);
-              return {
-                url: this.remotionAssetUrl(`/api/tmp/${stillFileName}`),
-                kind: "image" as const,
-              };
-            } catch (error: unknown) {
-              logger.warn(
-                { error, clip: clip.url },
-                "Could not freeze B-roll clip; rendering the video file",
-              );
-              return {
-                url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
-                kind: clip.kind,
-              };
-            }
-          }),
+          found.map(async (clip, clipIndex) =>
+            this.materializeBrollClip(clip, item.tempId, clipIndex, tempFiles),
+          ),
+        );
+        this.brollCache.remember(
+          orientation,
+          item.input.searchTerms,
+          found.map((clip) => clip.id),
         );
         for (const clip of found) {
           excludeVideoIds.push(clip.id);
@@ -612,6 +613,64 @@ export class ShortCreator {
 
   private remotionAssetUrl(route: string): string {
     return `http://127.0.0.1:${this.config.port}${route}`;
+  }
+
+  private async materializeBrollClip(
+    clip: { id: string; url: string; kind?: "video" | "image" },
+    tempId: string,
+    clipIndex: number,
+    tempFiles: string[],
+  ): Promise<{ url: string; kind?: "video" | "image" }> {
+    const cached = this.brollCache.get(clip.id);
+    if (cached) {
+      const ext = path.extname(cached.file) || (cached.kind === "video" ? ".mp4" : ".jpg");
+      const fileName = `${tempId}-c${clipIndex}${ext}`;
+      const dest = path.join(this.config.tempDirPath, fileName);
+      fs.copySync(cached.path, dest);
+      tempFiles.push(dest);
+      logger.debug({ id: clip.id, file: fileName }, "Copied cached B-roll");
+      return {
+        url: this.remotionAssetUrl(`/api/tmp/${fileName}`),
+        kind: cached.kind,
+      };
+    }
+
+    const isImage = clip.kind === "image";
+    const tempMediaFileName = `${tempId}-c${clipIndex}.${isImage ? "jpg" : "mp4"}`;
+    const tempMediaPath = path.join(this.config.tempDirPath, tempMediaFileName);
+    tempFiles.push(tempMediaPath);
+    logger.debug(
+      `Downloading ${clip.kind || "video"} from ${clip.url} to ${tempMediaPath}`,
+    );
+    await downloadHttpFile(clip.url, tempMediaPath);
+    if (isImage) {
+      this.brollCache.put(clip.id, "image", tempMediaPath);
+      return {
+        url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
+        kind: "image" as const,
+      };
+    }
+    const stillFileName = `${tempId}-c${clipIndex}.jpg`;
+    const stillPath = path.join(this.config.tempDirPath, stillFileName);
+    tempFiles.push(stillPath);
+    try {
+      await this.ffmpeg.extractStill(tempMediaPath, stillPath);
+      this.brollCache.put(clip.id, "image", stillPath);
+      return {
+        url: this.remotionAssetUrl(`/api/tmp/${stillFileName}`),
+        kind: "image" as const,
+      };
+    } catch (error: unknown) {
+      logger.warn(
+        { error, clip: clip.url },
+        "Could not freeze B-roll clip; rendering the video file",
+      );
+      this.brollCache.put(clip.id, "video", tempMediaPath);
+      return {
+        url: this.remotionAssetUrl(`/api/tmp/${tempMediaFileName}`),
+        kind: clip.kind,
+      };
+    }
   }
 
   public ListAvailableMusicTags(): MusicTag[] {

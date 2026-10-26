@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import VideoIcon from '@mui/icons-material/VideoLibrary';
 import AddIcon from '@mui/icons-material/Add';
+import CollectionsIcon from '@mui/icons-material/Collections';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -51,6 +52,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             >
               Short Video Maker
             </Typography>
+            <Button
+              color="inherit"
+              startIcon={<CollectionsIcon />}
+              onClick={() => navigate('/broll')}
+            >
+              B-roll
+            </Button>
             <Button 
               color="inherit" 
               startIcon={<AddIcon />}

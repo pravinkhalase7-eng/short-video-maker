@@ -278,6 +278,42 @@ export class APIRouter {
       },
     );
 
+    this.router.get("/broll", (req: ExpressRequest, res: ExpressResponse) => {
+      res.status(200).json({
+        clips: this.shortCreator.listBroll(),
+      });
+    });
+
+    this.router.get(
+      "/broll/:clipId",
+      (req: ExpressRequest, res: ExpressResponse) => {
+        const clipId = decodeURIComponent(req.params.clipId || "");
+        if (!clipId) {
+          res.status(400).json({
+            error: "clipId is required",
+          });
+          return;
+        }
+        const filePath = this.shortCreator.getBrollPath(clipId);
+        if (!filePath) {
+          res.status(404).json({
+            error: "B-roll clip not found",
+          });
+          return;
+        }
+        const ext = path.extname(filePath).toLowerCase();
+        res.setHeader(
+          "Content-Type",
+          ext === ".mp4" ? "video/mp4" : "image/jpeg",
+        );
+        res.setHeader(
+          "Content-Disposition",
+          `inline; filename="${path.basename(filePath)}"`,
+        );
+        this.sendLocalAsset(res, filePath, "B-roll clip not found");
+      },
+    );
+
     this.router.delete(
       "/short-video/:videoId",
       (req: ExpressRequest, res: ExpressResponse) => {

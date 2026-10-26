@@ -134,7 +134,7 @@ pipeline {
             echo "RESET_DATA: wiping shortvideo_temp and shortvideo_videos"
             docker volume rm -f shortvideo_temp shortvideo_videos || true
           else
-            echo "Keeping shortvideo_videos so rendered files survive this deploy"
+            echo "Keeping shortvideo_videos and shortvideo_broll so rendered files and stock clips survive this deploy"
           fi
           UP_FLAGS="-d --no-build"
           if [ "${params.FORCE_RECREATE}" = "true" ]; then

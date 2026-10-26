@@ -35,6 +35,7 @@ export class Config {
   public whisperInstallPath: string;
   public videosDirPath: string;
   public tempDirPath: string;
+  public brollDirPath: string;
   public packageDirPath: string;
   public musicDirPath: string;
   public pexelsApiKey: string;
@@ -66,6 +67,7 @@ export class Config {
     this.whisperInstallPath = path.join(this.libsDirPath, "whisper");
     this.videosDirPath = path.join(this.dataDirPath, "videos");
     this.tempDirPath = path.join(this.dataDirPath, "temp");
+    this.brollDirPath = path.join(this.dataDirPath, "broll");
     this.installationSuccessfulPath = path.join(
       this.dataDirPath,
       "installation-successful",
@@ -75,6 +77,7 @@ export class Config {
     fs.ensureDirSync(this.libsDirPath);
     fs.ensureDirSync(this.videosDirPath);
     fs.ensureDirSync(this.tempDirPath);
+    fs.ensureDirSync(this.brollDirPath);
 
     this.packageDirPath = path.join(__dirname, "..");
     this.staticDirPath = path.join(this.packageDirPath, "static");

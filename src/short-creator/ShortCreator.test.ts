@@ -36,6 +36,11 @@ vi.mock("fs-extra", async () => {
         memfs.mkdirSync(path, { recursive: true });
       } catch (error) {}
     }),
+    copySync: vi.fn((src, dest) => {
+      try {
+        memfs.writeFileSync(dest, memfs.readFileSync(src));
+      } catch (error) {}
+    }),
     removeSync: vi.fn((path) => {
       try {
         const stats = memfs.statSync(path);
